@@ -56,8 +56,12 @@ public class MaClasse: Controller
         // envoie dans le topic par défaut
         await _publisher.PublishAsync(new MonMessage(3, "John", "Doe"));
 
-        // envoie dans un topic en particulier
-        await _publisher.PublishAsync(new MonMessage(3, "John", "Doe"), "user-created-topic");
+        // envoie dans un topic particulier
+        await _publisher.PublishAsync(new MonMessage(3, new MessageOption()
+        {
+            Topic = "mon-topic
+            // d'autres options disponibles
+        }));
 
         return Ok();
     }
