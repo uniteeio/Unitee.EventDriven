@@ -73,7 +73,7 @@ public class MonController: Controller
         _publisher = publisher;
     }
 
-		[Subject("USER_CREATED")]
+    [Subject("USER_CREATED")]
     public record UtilisateurCreeEvent(int Id, string FirstName, string LastName);
 
     public async Task<IActionResult> MonAction()
