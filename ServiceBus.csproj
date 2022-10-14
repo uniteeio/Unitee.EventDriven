@@ -4,6 +4,16 @@
     <TargetFramework>net6.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+
+    <Authors>CREAC'H, Unitee</Authors>
+    <PackageId>Unitee.ServiceBus</PackageId>
+    <NeutralLanguage>en-US</NeutralLanguage>
+    <Title>Light abstraction for Service Bus</Title>
+    <Description>Light abstraction and good practices for Service Bus at Unitee</Description>
+    <RepositoryUrl>https://github.com/uniteeio/service-bus/</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <GenerateErrorForMissingTargetingPacks>false</GenerateErrorForMissingTargetingPacks>
   </PropertyGroup>
 
   <ItemGroup>
