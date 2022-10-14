@@ -7,7 +7,9 @@ using ServiceBus.Models;
 
 namespace ServiceBus.AzureServiceBus;
 
-public interface IAzureServiceBusPublisher : IPublisher<long, string> { }
+public record Result(long Sequence, string MessageId);
+
+public interface IAzureServiceBusPublisher : IPublisher<Result, long> { }
 
 
 /// <summary>
@@ -29,7 +31,7 @@ public class AzureServiceBusPublisher : IAzureServiceBusPublisher
         return new ServiceBusClient(_connectionString);
     }
 
-    private async Task<(long, string)> InternalPublishAsync<T>(T message, string topic, ServiceBusMessage azMessage)
+    private async Task<Result> InternalPublishAsync<T>(T message, string topic, ServiceBusMessage azMessage)
     {
         var subject = ClassHelper.GetSubject<T>();
 
@@ -48,21 +50,21 @@ public class AzureServiceBusPublisher : IAzureServiceBusPublisher
         if (azMessage.ScheduledEnqueueTime == null)
         {
             await sender.SendMessageAsync(azMessage);
-            return (0, azMessage.MessageId);
+            return new Result(0, azMessage.MessageId);
         }
         else
         {
-            return (
+            return new Result(
                 await sender.ScheduleMessageAsync(azMessage, azMessage.ScheduledEnqueueTime), azMessage.MessageId);
         }
     }
 
-    public async Task<(long, string)> PublishAsync<T>(T message)
+    public async Task<Result> PublishAsync<T>(T message)
     {
         return await InternalPublishAsync(message, _defaultTopic, new());
     }
 
-    public async Task<(long, string)> PublishAsync<T>(T message, MessageOptions options)
+    public async Task<Result> PublishAsync<T>(T message, MessageOptions options)
     {
         var msg = new ServiceBusMessage();
 
