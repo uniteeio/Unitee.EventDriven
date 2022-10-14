@@ -12,9 +12,6 @@ public record Result(long Sequence, string MessageId);
 public interface IAzureServiceBusPublisher : IPublisher<Result, long> { }
 
 
-/// <summary>
-/// Implémentation de <see cref="IPublisher"/> pour Azure Service Bus.
-/// </summary>
 public class AzureServiceBusPublisher : IAzureServiceBusPublisher
 {
     private readonly string _connectionString;
