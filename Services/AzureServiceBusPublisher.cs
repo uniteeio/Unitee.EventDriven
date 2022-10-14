@@ -22,7 +22,7 @@ public class AzureServiceBusPublisher : IPublisher
         return new ServiceBusClient(_connectionString);
     }
 
-    private static string GetSubject<T>()
+    public static string GetSubject<T>()
     {
         var maybeSubjectAttribute = (SubjectAttribute?)Attribute.GetCustomAttribute(typeof(T), typeof(SubjectAttribute));
 
@@ -46,6 +46,7 @@ public class AzureServiceBusPublisher : IPublisher
 
         azMessage.Subject = subject;
         azMessage.Body = new(JsonSerializer.Serialize(message));
+        azMessage.ContentType = "application/json";
 
         await sender.SendMessageAsync(azMessage);
     }
