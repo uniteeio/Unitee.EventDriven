@@ -7,10 +7,13 @@ using ServiceBus.Models;
 
 namespace ServiceBus.AzureServiceBus;
 
+public interface IAzureServiceBusPublisher : IPublisher<long, string> { }
+
+
 /// <summary>
 /// Implémentation de <see cref="IPublisher"/> pour Azure Service Bus.
 /// </summary>
-public class AzureServiceBusPublisher : IPublisher
+public class AzureServiceBusPublisher : IAzureServiceBusPublisher
 {
     private readonly string _connectionString;
     private readonly string _defaultTopic;
@@ -26,7 +29,7 @@ public class AzureServiceBusPublisher : IPublisher
         return new ServiceBusClient(_connectionString);
     }
 
-    private async Task InternalPublishAsync<T>(T message, string topic, ServiceBusMessage azMessage)
+    private async Task<(long, string)> InternalPublishAsync<T>(T message, string topic, ServiceBusMessage azMessage)
     {
         var subject = ClassHelper.GetSubject<T>();
 
@@ -37,15 +40,29 @@ public class AzureServiceBusPublisher : IPublisher
         azMessage.Body = new(JsonSerializer.Serialize(message));
         azMessage.ContentType = "application/json";
 
-        await sender.SendMessageAsync(azMessage);
+        if (azMessage.MessageId is null)
+        {
+            azMessage.MessageId = Guid.NewGuid().ToString();
+        }
+
+        if (azMessage.ScheduledEnqueueTime == null)
+        {
+            await sender.SendMessageAsync(azMessage);
+            return (0, azMessage.MessageId);
+        }
+        else
+        {
+            return (
+                await sender.ScheduleMessageAsync(azMessage, azMessage.ScheduledEnqueueTime), azMessage.MessageId);
+        }
     }
 
-    public async Task PublishAsync<T>(T message)
+    public async Task<(long, string)> PublishAsync<T>(T message)
     {
-        await InternalPublishAsync(message, _defaultTopic, new());
+        return await InternalPublishAsync(message, _defaultTopic, new());
     }
 
-    public async Task PublishAsync<T>(T message, MessageOptions options)
+    public async Task<(long, string)> PublishAsync<T>(T message, MessageOptions options)
     {
         var msg = new ServiceBusMessage();
 
@@ -54,6 +71,18 @@ public class AzureServiceBusPublisher : IPublisher
             msg.ScheduledEnqueueTime = options.ScheduledEnqueueTime.Value;
         }
 
-        await InternalPublishAsync(message, options.Topic ?? _defaultTopic, msg);
+        if (options.MessageId is not null)
+        {
+            msg.MessageId = options.MessageId;
+        }
+
+        return await InternalPublishAsync(message, options.Topic ?? _defaultTopic, msg);
+    }
+
+    public async Task CancelAsync(long sequence, string? topic = null)
+    {
+        await using var client = GetServiceBusClient();
+        var sender = client.CreateSender(topic ?? _defaultTopic);
+        await sender.CancelScheduledMessageAsync(sequence);
     }
 }
