@@ -2,7 +2,6 @@ using System.Text.Json;
 using Azure.Messaging.ServiceBus;
 using Azure.Messaging.ServiceBus.Administration;
 using ServiceBus.Abstraction;
-using ServiceBus.Attributes;
 using ServiceBus.Exceptions;
 using ServiceBus.Helpers;
 using ServiceBus.Models;
@@ -70,23 +69,7 @@ public class AzureServiceBusPublisher : IAzureServiceBusPublisher
 
     public async Task<Result> PublishAsync<T>(T message, MessageOptions options)
     {
-        var msg = new ServiceBusMessage();
-
-        if (options.ScheduledEnqueueTime is not null)
-        {
-            msg.ScheduledEnqueueTime = options.ScheduledEnqueueTime.Value;
-        }
-
-        if (options.MessageId is not null)
-        {
-            msg.MessageId = options.MessageId;
-        }
-
-        if (options.SessionId is not null)
-        {
-            msg.SessionId = options.SessionId;
-        }
-
+        var msg = ServiceBusMessageFactory.Create(options);
         return await InternalPublishAsync(message, options.Topic ?? _defaultTopic, msg);
     }
 
@@ -97,7 +80,7 @@ public class AzureServiceBusPublisher : IAzureServiceBusPublisher
         await sender.CancelScheduledMessageAsync(sequence);
     }
 
-    public async Task CreateReplyQueue(string queueName)
+    private async Task CreateReplyQueue(string queueName)
     {
         var client = GetManagementClient();
 
@@ -111,7 +94,7 @@ public class AzureServiceBusPublisher : IAzureServiceBusPublisher
         }
     }
 
-    public async Task<U> RequestResponse<T, U>(T message, MessageOptions options, ReplyOptions? reply = null)
+    public async Task<TResponse> RequestResponse<TMessage, TResponse>(TMessage message, MessageOptions options, ReplyOptions? reply = null)
     {
         if (reply is null)
         {
@@ -144,7 +127,7 @@ public class AzureServiceBusPublisher : IAzureServiceBusPublisher
             throw new TimeoutException();
         }
 
-        var body = JsonSerializer.Deserialize<U>(receivedMessage.Body);
+        var body = JsonSerializer.Deserialize<TResponse>(receivedMessage.Body);
 
         if (body is null)
         {
