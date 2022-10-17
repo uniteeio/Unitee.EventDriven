@@ -6,12 +6,14 @@ using ServiceBus.Helpers;
 
 namespace ServiceBus.AzureServiceBus;
 
+public interface IAzureServiceBusMessageHandler :  IMessageHandler<ServiceBusReceivedMessage> { }
+
 /// <summary>
 /// Handler par défault pour les messages de Azure Service Bus.
 /// La classe se charge de lire le message puis, d'appeler le bon consumer.
 /// </summary>
 /// <param name="ServiceBusReceivedMessage">Le message original (celui lu depuis la Azure Fonction).</param>
-public class AzureServiceBusMessageHandler : IMessageHandler<ServiceBusReceivedMessage>
+public class AzureServiceBusMessageHandler : IAzureServiceBusMessageHandler
 {
     readonly IEnumerable<IConsumer> _consumers;
 
