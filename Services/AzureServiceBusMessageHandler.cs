@@ -6,7 +6,7 @@ using ServiceBus.Helpers;
 
 namespace ServiceBus.AzureServiceBus;
 
-public interface IAzureServiceBusMessageHandler :  IMessageHandler<ServiceBusReceivedMessage> { }
+public interface IAzureServiceBusMessageHandler : IMessageHandler<ServiceBusReceivedMessage> { }
 
 /// <summary>
 /// Handler par défault pour les messages de Azure Service Bus.
@@ -16,26 +16,48 @@ public interface IAzureServiceBusMessageHandler :  IMessageHandler<ServiceBusRec
 public class AzureServiceBusMessageHandler : IAzureServiceBusMessageHandler
 {
     readonly IEnumerable<IConsumer> _consumers;
+    private readonly IAzureServiceBusPublisher _publisher;
 
-    public AzureServiceBusMessageHandler(IServiceProvider provider)
+    public AzureServiceBusMessageHandler(IServiceProvider provider, IAzureServiceBusPublisher publisher)
     {
         _consumers = provider.GetServices<IConsumer>();
+        _publisher = publisher;
     }
 
-    public static async Task<bool> TryInvoke<T>(IConsumer<T> consumer, ServiceBusReceivedMessage originalMessage)
+    public async Task<bool> TryInvoke<TMessage>(IAzureServiceBusConsumerWithContext<TMessage> consumer, ServiceBusReceivedMessage originalMessage)
     {
-        var subject = MessageHelper.GetSubject<T>();
+        var subject = MessageHelper.GetSubject<TMessage>();
         if (subject == originalMessage.Subject)
         {
-            var message = JsonSerializer.Deserialize<T>(originalMessage.Body);
+            var message = JsonSerializer.Deserialize<TMessage>(originalMessage.Body);
+            if (message is not null)
+            {
+                var messageCtx = new AzureServiceBusMessageContext(_publisher, originalMessage);
+                await consumer.ConsumeAsync(message, messageCtx);
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+
+    public async Task<bool> TryInvoke<TMessage>(IAzureServiceBusConsumer<TMessage> consumer, ServiceBusReceivedMessage originalMessage)
+    {
+        var subject = MessageHelper.GetSubject<TMessage>();
+        if (subject == originalMessage.Subject)
+        {
+            var message = JsonSerializer.Deserialize<TMessage>(originalMessage.Body);
             if (message is not null)
             {
                 await consumer.ConsumeAsync(message);
                 return true;
             }
         }
+
         return false;
     }
+
 
     public async Task<bool> HandleAsync(ServiceBusReceivedMessage originalMessage)
     {

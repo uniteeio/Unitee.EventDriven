@@ -1,7 +1,9 @@
 using System.Text.Json;
 using Azure.Messaging.ServiceBus;
+using Azure.Messaging.ServiceBus.Administration;
 using ServiceBus.Abstraction;
 using ServiceBus.Attributes;
+using ServiceBus.Exceptions;
 using ServiceBus.Helpers;
 using ServiceBus.Models;
 
@@ -26,6 +28,11 @@ public class AzureServiceBusPublisher : IAzureServiceBusPublisher
     private ServiceBusClient GetServiceBusClient()
     {
         return new ServiceBusClient(_connectionString);
+    }
+
+    private ServiceBusAdministrationClient GetManagementClient()
+    {
+        return new ServiceBusAdministrationClient(_connectionString);
     }
 
     private async Task<Result> InternalPublishAsync<T>(T message, string topic, ServiceBusMessage azMessage)
@@ -75,6 +82,11 @@ public class AzureServiceBusPublisher : IAzureServiceBusPublisher
             msg.MessageId = options.MessageId;
         }
 
+        if (options.SessionId is not null)
+        {
+            msg.SessionId = options.SessionId;
+        }
+
         return await InternalPublishAsync(message, options.Topic ?? _defaultTopic, msg);
     }
 
@@ -83,5 +95,62 @@ public class AzureServiceBusPublisher : IAzureServiceBusPublisher
         await using var client = GetServiceBusClient();
         var sender = client.CreateSender(topic ?? _defaultTopic);
         await sender.CancelScheduledMessageAsync(sequence);
+    }
+
+    public async Task CreateReplyQueue(string queueName)
+    {
+        var client = GetManagementClient();
+
+        if (!await client.QueueExistsAsync(queueName))
+        {
+            await client.CreateQueueAsync(new CreateQueueOptions(queueName)
+            {
+                AutoDeleteOnIdle = TimeSpan.FromMinutes(10),
+                RequiresSession = true,
+            });
+        }
+    }
+
+    public async Task<U> RequestResponse<T, U>(T message, MessageOptions options, ReplyOptions? reply = null)
+    {
+        if (reply is null)
+        {
+            reply = new();
+        }
+
+        var sessionId = options.SessionId ?? Guid.NewGuid().ToString();
+
+        if (options.SessionId is null)
+        {
+            options.SessionId = sessionId;
+        }
+
+        await CreateReplyQueue(reply.QueueName);
+
+        var client = GetServiceBusClient();
+
+        var msg = ServiceBusMessageFactory.Create(options);
+
+        msg.ReplyToSessionId = sessionId;
+        msg.ReplyTo = reply.QueueName;
+
+        await InternalPublishAsync(message, options.Topic ?? _defaultTopic, msg);
+
+        ServiceBusSessionReceiver receiver = await client.AcceptSessionAsync(reply.QueueName, sessionId);
+        ServiceBusReceivedMessage receivedMessage = await receiver.ReceiveMessageAsync(reply.Timeout);
+
+        if (receivedMessage is null)
+        {
+            throw new TimeoutException();
+        }
+
+        var body = JsonSerializer.Deserialize<U>(receivedMessage.Body);
+
+        if (body is null)
+        {
+            throw new CannotParseException<ServiceBusReceivedMessage>(receivedMessage);
+        }
+
+        return body;
     }
 }

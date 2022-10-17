@@ -6,10 +6,12 @@ namespace ServiceBus.Abstraction;
 /// </summary>
 public interface IConsumer { }
 
-/// <summary>
-/// Interface pour les consumers.
-/// </summary>
-public interface IConsumer<in T>: IConsumer
+public interface IConsumerWithContext<TMessage, TMessageContext> : IConsumer
+{
+    public Task ConsumeAsync(TMessage message, TMessageContext context);
+}
+
+public interface IConsumer<T> : IConsumer
 {
     public Task ConsumeAsync(T message);
 }

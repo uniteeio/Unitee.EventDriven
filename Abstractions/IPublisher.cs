@@ -1,17 +1,25 @@
 using ServiceBus.Models;
 namespace ServiceBus.Abstraction;
 
-public interface IPublisher<ResultType, SequenceType>
+public interface IPublisher<TResult, TSequence>
 {
     /// <summary>
     /// Publie un message sur le bus.
     /// </summary>
-    public Task<ResultType> PublishAsync<T>(T message);
+    public Task<TResult> PublishAsync<TMessage>(TMessage message);
 
     /// <summary>
     /// Publie un message sur le bus avec des options.
     /// </summary>
-    public Task<ResultType> PublishAsync<T>(T message, MessageOptions options);
+    public Task<TResult> PublishAsync<TMessage>(TMessage message, MessageOptions options);
 
-    public Task CancelAsync(SequenceType sequence, string? topic = null);
+    /// <summary>
+    /// Publie un message et attend une réponse
+    /// </summary>
+    public Task<U> RequestResponse<T, U>(T message, MessageOptions options, ReplyOptions? replyOptions = null);
+
+    /// <summary>
+    /// Annule un message
+    /// </summary>
+    public Task CancelAsync(TSequence sequence, string? topic = null);
 }
