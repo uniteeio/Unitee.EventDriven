@@ -2,7 +2,7 @@ using System.Text.Json;
 using Azure.Messaging.ServiceBus;
 using ServiceBus.Abstraction;
 using ServiceBus.Attributes;
-using ServiceBus.Internal;
+using ServiceBus.Helpers;
 using ServiceBus.Models;
 
 namespace ServiceBus.AzureServiceBus;
@@ -30,7 +30,7 @@ public class AzureServiceBusPublisher : IAzureServiceBusPublisher
 
     private async Task<Result> InternalPublishAsync<T>(T message, string topic, ServiceBusMessage azMessage)
     {
-        var subject = ClassHelper.GetSubject<T>();
+        var subject = MessageHelper.GetSubject<T>();
 
         await using var client = GetServiceBusClient();
         var sender = client.CreateSender(topic);

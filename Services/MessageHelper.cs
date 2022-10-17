@@ -1,8 +1,8 @@
 using ServiceBus.Attributes;
 
-namespace ServiceBus.Internal;
+namespace ServiceBus.Helpers;
 
-internal static class ClassHelper
+public static class MessageHelper
 {
 
     /// <summary>

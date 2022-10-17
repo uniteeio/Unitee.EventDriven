@@ -2,7 +2,7 @@ using System.Text.Json;
 using Azure.Messaging.ServiceBus;
 using Microsoft.Extensions.DependencyInjection;
 using ServiceBus.Abstraction;
-using ServiceBus.Internal;
+using ServiceBus.Helpers;
 
 namespace ServiceBus.AzureServiceBus;
 
@@ -22,7 +22,7 @@ public class AzureServiceBusMessageHandler : IMessageHandler<ServiceBusReceivedM
 
     public static async Task<bool> TryInvoke<T>(IConsumer<T> consumer, ServiceBusReceivedMessage originalMessage)
     {
-        var subject = ClassHelper.GetSubject<T>();
+        var subject = MessageHelper.GetSubject<T>();
         if (subject == originalMessage.Subject)
         {
             var message = JsonSerializer.Deserialize<T>(originalMessage.Body);
