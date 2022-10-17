@@ -8,7 +8,7 @@ public static class ServicesConfiguration
 {
     public static void AddAzureServiceBus(this IServiceCollection services, string connectionString, string defaultTopic)
     {
-        services.AddScoped<IPublisher, AzureServiceBusPublisher>(
+        services.AddScoped<IAzureServiceBusPublisher, AzureServiceBusPublisher>(
             ctx => new AzureServiceBusPublisher(connectionString, defaultTopic));
     }
 }

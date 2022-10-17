@@ -7,10 +7,12 @@ using ServiceBus.Models;
 
 namespace ServiceBus.AzureServiceBus;
 
-/// <summary>
-/// Implémentation de <see cref="IPublisher"/> pour Azure Service Bus.
-/// </summary>
-public class AzureServiceBusPublisher : IPublisher
+public record Result(long Sequence, string MessageId);
+
+public interface IAzureServiceBusPublisher : IPublisher<Result, long> { }
+
+
+public class AzureServiceBusPublisher : IAzureServiceBusPublisher
 {
     private readonly string _connectionString;
     private readonly string _defaultTopic;
@@ -26,7 +28,7 @@ public class AzureServiceBusPublisher : IPublisher
         return new ServiceBusClient(_connectionString);
     }
 
-    private async Task InternalPublishAsync<T>(T message, string topic, ServiceBusMessage azMessage)
+    private async Task<Result> InternalPublishAsync<T>(T message, string topic, ServiceBusMessage azMessage)
     {
         var subject = ClassHelper.GetSubject<T>();
 
@@ -37,15 +39,29 @@ public class AzureServiceBusPublisher : IPublisher
         azMessage.Body = new(JsonSerializer.Serialize(message));
         azMessage.ContentType = "application/json";
 
-        await sender.SendMessageAsync(azMessage);
+        if (azMessage.MessageId is null)
+        {
+            azMessage.MessageId = Guid.NewGuid().ToString();
+        }
+
+        if (azMessage.ScheduledEnqueueTime == null)
+        {
+            await sender.SendMessageAsync(azMessage);
+            return new Result(0, azMessage.MessageId);
+        }
+        else
+        {
+            return new Result(
+                await sender.ScheduleMessageAsync(azMessage, azMessage.ScheduledEnqueueTime), azMessage.MessageId);
+        }
     }
 
-    public async Task PublishAsync<T>(T message)
+    public async Task<Result> PublishAsync<T>(T message)
     {
-        await InternalPublishAsync(message, _defaultTopic, new());
+        return await InternalPublishAsync(message, _defaultTopic, new());
     }
 
-    public async Task PublishAsync<T>(T message, MessageOptions options)
+    public async Task<Result> PublishAsync<T>(T message, MessageOptions options)
     {
         var msg = new ServiceBusMessage();
 
@@ -54,6 +70,18 @@ public class AzureServiceBusPublisher : IPublisher
             msg.ScheduledEnqueueTime = options.ScheduledEnqueueTime.Value;
         }
 
-        await InternalPublishAsync(message, options.Topic ?? _defaultTopic, msg);
+        if (options.MessageId is not null)
+        {
+            msg.MessageId = options.MessageId;
+        }
+
+        return await InternalPublishAsync(message, options.Topic ?? _defaultTopic, msg);
+    }
+
+    public async Task CancelAsync(long sequence, string? topic = null)
+    {
+        await using var client = GetServiceBusClient();
+        var sender = client.CreateSender(topic ?? _defaultTopic);
+        await sender.CancelScheduledMessageAsync(sequence);
     }
 }
