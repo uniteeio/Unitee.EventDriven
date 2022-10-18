@@ -160,7 +160,7 @@ public class ServiceBusTopicTrigger1
     private readonly ILogger<ServiceBusTopicTrigger1> _logger;
     private readonly IAzureServiceBusMessageHandler _handler;
 
-    public ServiceBusTopicTrigger1(ILogger<ServiceBusTopicTrigger1> log, IMessageHandler<ServiceBusReceivedMessage> handler)
+    public ServiceBusTopicTrigger1(ILogger<ServiceBusTopicTrigger1> log, IAzureServiceBusMessageHandler handler)
     {
          _logger = log;
          _handler = handler;
