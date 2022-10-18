@@ -16,7 +16,7 @@ Le publisher est une classe qui permet de publier un message à travers un bus d
 
 ### Les consumers
 
-Les consumers sont des classes capapbles de consumer un type de message en particulier.
+Les consumers sont des classes capables de consumer un type de message en particulier.
 
 ### Le handler
 
@@ -28,7 +28,7 @@ Le handler est la classe capable de rediriger un message vers le handler correct
 
 ### Créer un type de message
 
-Un message est une classe, ou un type enregistrement (conseillé).
+Un message est une classe, ou un type enregistrement (conseillé). 
 
 ```csharp
 // Préféré
@@ -52,7 +52,9 @@ public record OrderSubmitted(int Id);
 
 ### Publier un message
 
-Pour publier un message, on se sert d’un “publisher”. Une implementation d’un publisher pour Azure Service Bus est définit dans le package. On l’ajoute à notre projet .NET Core:
+Pour publier un message, on se sert d’un “publisher”. Une implementation d’un publisher pour Azure Service Bus est définit dans le package. 
+
+On l’ajoute à notre projet .NET Core:
 
 ```csharp
 builder.services.addAzureServiceBus(
@@ -66,9 +68,9 @@ On utilise ensuite l’injection de dépendance pour récupérer notre instance 
 ```csharp
 public class MonController: Controller
 {
-    private readonly IPublisher _publisher;
+    private readonly IAzureServiceBusPublisher _publisher;
 
-    MonController(IPublisher publisher)
+    MonController(IAzureServiceBusPublisher publisher)
     {
         _publisher = publisher;
     }
@@ -82,12 +84,16 @@ public class MonController: Controller
         await _publisher.PublishAsync(new UtilisateurCreeEvent(3, "John", "Doe"));
 
         // envoie dans un topic particulier
-        await _publisher.PublishAsync(new UtilisateurCreeEvent(3, new MessageOption()
+        var result = await _publisher.PublishAsync(new UtilisateurCreeEvent(3, new MessageOption()
         {
-            Topic = "mon-topic"
+            Topic = "mon-topic",
+            ScheduledEnqueueTime = DateTime.Now.AddMinutes(10)
 
             // d'autres options disponibles
         }));
+
+        // Annule un message
+        await _publisher.CancelAsync(result.Sequence);
 
         return Ok();
     }
@@ -104,24 +110,24 @@ Prérequis:
 1. Ajouter un consumer pour un type de message
 
 ```csharp
-public record OrderSubmitted(int Id);
+public record OrderSubmitted(int Id); 
 
 // ..
 
-public class MonConsumer: IConsumer<OrderSubmitted>
+public class MonConsumer: IAzureServiceBusConsumer<OrderSubmitted>
 {
-   private readonly ILogger<MonConsumer> log;
+    private readonly ILogger<MonConsumer> log;
 
-   /// Injection de dépendance disponible
-   MonConsumer(ILogger<MonConsumer> log)
-   {
-      _log = log;
-   }
+    // Injection de dépendance disponible
+    MonConsumer(ILogger<MonConsumer> log)
+    {
+        _log = log;
+    }
 
-   public async Task ConsumeAsync(OrderSubmitted message)
-   {
-       _log.LogInfo(message.Id);
-   }
+    public async Task ConsumeAsync(OrderSubmitted message)
+    {
+        _log.LogInfo(message.Id);
+    }
 }
 ```
 
@@ -132,19 +138,17 @@ public class Startup : FunctionsStartup
 {
     public override void Configure(IFunctionsHostBuilder builder)
     {
-        // parce que IConsumer<T> implémente IConsumer, c'est possible de
-        //faire comme ça
-        builder.Services.AddScoped<IConsumer, MonConsumer>();
-    }
+        builder.Services.AddScoped<IConsumer, MonConsumer>();  
+    } 
 }
 ```
 
-1. Ajouter un handler pour le type de message en entrée “ServiceBusReceivedMessage” (j’utilise celui fourni avec l’extension pour Azure Service Bus)
+1. Ajouter un handler, j’utilise celui fourni avec l’extension pour Azure Service Bus:
 
 ```csharp
 builder.Services.AddScoped<
-	IMessageHandler<ServiceBusReceivedMessage>,
-	AzureServiceBusMessageHandler>();
+    IAzureServiceBusMessageHandler, 
+    AzureServiceBusMessageHandler>();
 ```
 
 1. Combiner le tout ensemble:
@@ -154,7 +158,7 @@ builder.Services.AddScoped<
 public class ServiceBusTopicTrigger1
 {
     private readonly ILogger<ServiceBusTopicTrigger1> _logger;
-    private readonly IMessageHandler<ServiceBusReceivedMessage> _handler;
+    private readonly IAzureServiceBusMessageHandler _handler;
 
     public ServiceBusTopicTrigger1(ILogger<ServiceBusTopicTrigger1> log, IMessageHandler<ServiceBusReceivedMessage> handler)
     {
@@ -163,8 +167,8 @@ public class ServiceBusTopicTrigger1
     }
 
     [FunctionName("ServiceBusTopicTrigger1")]
-     public async Task Run([ServiceBusTrigger("topic", "subscription", Connection = "sbhousebase_SERVICEBUS")]ServiceBusReceivedMessage message)
-     {
+    public async Task Run([ServiceBusTrigger("topic", "subscription", Connection = "SERVICEBUS")]ServiceBusReceivedMessage message)
+    {
         var result = await _handler.HandleAsync(message);
 
         if (result is true)
@@ -175,6 +179,42 @@ public class ServiceBusTopicTrigger1
         {
             _logger.LogInformation("Aucun handler trouvé pour ce type de message");
         }
+    }
+}
+```
+
+### Requêtes et réponses
+
+Il est possible d’envoyer un message en attendant une réponse, pour ça on utilise la fonction:
+
+```csharp
+public record MonTypeRequete(int Guid);
+public record MonTypeReponse(string Status);
+
+// ...
+
+await _publisher.RequestResponseAsync<MonTypeRequete, MonTypeReponse>(
+    new MonTypeRequete(Guid.NewGuid()),
+    new MessageOptions(),
+    new ReplyOptions()
+    {
+        Timeout = TimeSpan.FromSecond(10);
+        QueueName = "reply"
+    });
+```
+
+Le service utilise le pattern: Reply / Response en créant une queue de réponse temporaire et en partionant les messages à l’aide du champs: SessionId.
+
+### Répondre à un message
+
+Pour répondre depuis un consumer on peut implémenter l’interface:
+
+```csharp
+public class MonConsumer: IAzureServiceBusConsumerWithContext<OrderSubmitted>
+{
+    public async Task ConsumeAsync(OrderSubmitted message, IAzureServiceBusMessageContext ctx)
+    {
+        await ctx.AnswerAsync(new MonTypeReponse("Ok"));
     }
 }
 ```

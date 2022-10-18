@@ -16,7 +16,7 @@ public interface IPublisher<TResult, TSequence>
     /// <summary>
     /// Publie un message et attend une réponse
     /// </summary>
-    public Task<U> RequestResponse<T, U>(T message, MessageOptions options, ReplyOptions? replyOptions = null);
+    public Task<U> RequestResponseAsync<T, U>(T message, MessageOptions options, ReplyOptions? replyOptions = null);
 
     /// <summary>
     /// Annule un message

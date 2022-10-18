@@ -94,7 +94,7 @@ public class AzureServiceBusPublisher : IAzureServiceBusPublisher
         }
     }
 
-    public async Task<TResponse> RequestResponse<TMessage, TResponse>(TMessage message, MessageOptions options, ReplyOptions? reply = null)
+    public async Task<TResponse> RequestResponseAsync<TMessage, TResponse>(TMessage message, MessageOptions options, ReplyOptions? reply = null)
     {
         if (reply is null)
         {
