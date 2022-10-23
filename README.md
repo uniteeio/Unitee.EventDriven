@@ -2,6 +2,8 @@
 
 [https://github.com/uniteeio/service-bus](https://github.com/uniteeio/service-bus)
 
+![logo](./logo/LogoText.png)
+
 ## Concepts
 
 ---
