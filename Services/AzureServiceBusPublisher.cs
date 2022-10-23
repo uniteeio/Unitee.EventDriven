@@ -89,6 +89,7 @@ public class AzureServiceBusPublisher : IAzureServiceBusPublisher
             await client.CreateQueueAsync(new CreateQueueOptions(queueName)
             {
                 AutoDeleteOnIdle = TimeSpan.FromMinutes(10),
+                DefaultMessageTimeToLive = TimeSpan.FromMinutes(5),
                 RequiresSession = true,
             });
         }
