@@ -220,3 +220,29 @@ public class MonConsumer: IAzureServiceBusConsumerWithContext<OrderSubmitted>
     }
 }
 ```
+
+### Consumer un message depuis une Api ou un MVC
+
+On utilise un IHostedService (service qui tourne en tâche de fond) pour récupérer les messages.
+On utilise les mêmes conceptes que pour les Functions, c'est à dire, les handlers et les consumers.
+
+Program.cs
+```cs
+// Ajout des consumers
+builder.Services.AddScoped<IConsumer, ConsumerImpl1>();
+builder.Services.AddScoped<IConsumer, ConsumerImpl2>();
+builder.Services.AddScoped<IConsumer, ConsumerImpl3>();
+
+// Ajout du handler
+builder.Services.AddScoped<IAzureServiceBusMessageHandler, AzureServiceBusMessageHandler>();
+
+// Ajout du BackgroundService
+
+// Pour les queues
+builder.Services.AddBackgroundReceiver("{connectionString}", "{queueName}");
+
+// Pour les topics et subscriptions
+builder.Services.AddBackgroundReceiver("{connectionString}", "{queueName}", "{subscriptionName}");
+```
+
+Il est possible d'ajouter plusieurs BackgroundReceiver pour gérer différents événements.
