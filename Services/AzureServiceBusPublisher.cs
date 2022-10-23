@@ -50,7 +50,7 @@ public class AzureServiceBusPublisher : IAzureServiceBusPublisher
             azMessage.MessageId = Guid.NewGuid().ToString();
         }
 
-        if (azMessage.ScheduledEnqueueTime == null)
+        if (azMessage.ScheduledEnqueueTime == default)
         {
             await sender.SendMessageAsync(azMessage);
             return new Result(0, azMessage.MessageId);
