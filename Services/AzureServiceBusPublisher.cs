@@ -119,7 +119,11 @@ public class AzureServiceBusPublisher : IAzureServiceBusPublisher
 
         await InternalPublishAsync(message, options.Topic ?? _defaultTopic, msg);
 
-        ServiceBusSessionReceiver receiver = await client.AcceptSessionAsync(reply.QueueName, sessionId);
+        ServiceBusSessionReceiver receiver = await client.AcceptSessionAsync(reply.QueueName, sessionId, new ServiceBusSessionReceiverOptions()
+        {
+            ReceiveMode = ServiceBusReceiveMode.ReceiveAndDelete
+        });
+
         ServiceBusReceivedMessage receivedMessage = await receiver.ReceiveMessageAsync(reply.Timeout);
 
         if (receivedMessage is null)
