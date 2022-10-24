@@ -32,6 +32,9 @@ public class AzureServiceBusBackgroundReceiver : BackgroundService
             using var scope = Services.CreateScope();
             var handler = scope.ServiceProvider.GetRequiredService<IAzureServiceBusMessageHandler>();
             var receivedMessage = await receiver.ReceiveMessageAsync(null, stoppingToken);
+            if (receivedMessage is null)
+                continue;
+
             try
             {
                 await handler.HandleAsync(receivedMessage);
