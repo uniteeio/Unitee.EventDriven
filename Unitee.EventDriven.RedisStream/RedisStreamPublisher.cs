@@ -1,7 +1,7 @@
 using System.Text.Json;
-using ServiceBus.Abstraction;
-using ServiceBus.Helpers;
-using ServiceBus.Models;
+using Unitee.EventDriven.Abstraction;
+using Unitee.EventDriven.Helpers;
+using Unitee.EventDriven.Models;
 using StackExchange.Redis;
 
 namespace Unitee.RedisStream;

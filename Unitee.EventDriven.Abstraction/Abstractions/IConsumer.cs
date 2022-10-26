@@ -1,4 +1,4 @@
-namespace ServiceBus.Abstraction;
+namespace Unitee.EventDriven.Abstraction;
 
 /// <summary>
 /// Juste pour pouvoir récupérer la liste de tous les consumers depuis l'injection de dépendances.

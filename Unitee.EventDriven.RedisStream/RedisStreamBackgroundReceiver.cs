@@ -3,11 +3,11 @@ using CSRedis;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using ServiceBus.Abstraction;
-using ServiceBus.Helpers;
+using Unitee.EventDriven.Abstraction;
+using Unitee.EventDriven.Helpers;
 using StackExchange.Redis;
 
-namespace ServiceBus.DependencyInjection;
+namespace Unitee.EventDriven.DependencyInjection;
 
 public class RedisStreamBackgroundReceiver<TConsumer> : BackgroundService where TConsumer : class, IConsumer
 {

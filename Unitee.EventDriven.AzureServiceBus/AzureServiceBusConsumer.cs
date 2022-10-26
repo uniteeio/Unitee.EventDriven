@@ -1,6 +1,6 @@
-using ServiceBus.Abstraction;
+using Unitee.EventDriven.Abstraction;
 
-namespace ServiceBus.AzureServiceBus;
+namespace Unitee.EventDriven.AzureServiceBus;
 
 public interface IAzureServiceBusConsumerWithContext<TMessage> : IConsumerWithContext<TMessage, IAzureServiceBusMessageContext> { }
 

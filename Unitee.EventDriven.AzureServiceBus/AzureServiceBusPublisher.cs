@@ -1,12 +1,12 @@
 using System.Text.Json;
 using Azure.Messaging.ServiceBus;
 using Azure.Messaging.ServiceBus.Administration;
-using ServiceBus.Abstraction;
-using ServiceBus.Exceptions;
-using ServiceBus.Helpers;
-using ServiceBus.Models;
+using Unitee.EventDriven.Abstraction;
+using Unitee.EventDriven.Exceptions;
+using Unitee.EventDriven.Helpers;
+using Unitee.EventDriven.Models;
 
-namespace ServiceBus.AzureServiceBus;
+namespace Unitee.EventDriven.AzureServiceBus;
 
 public record Result(long Sequence, string MessageId);
 

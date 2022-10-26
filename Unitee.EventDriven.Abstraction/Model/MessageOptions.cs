@@ -1,4 +1,4 @@
-namespace ServiceBus.Models;
+namespace Unitee.EventDriven.Models;
 
 public record MessageOptions()
 {

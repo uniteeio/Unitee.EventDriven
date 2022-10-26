@@ -1,6 +1,6 @@
-using ServiceBus.Attributes;
+using Unitee.EventDriven.Attributes;
 
-namespace ServiceBus.Helpers;
+namespace Unitee.EventDriven.Helpers;
 
 public static class MessageHelper
 {

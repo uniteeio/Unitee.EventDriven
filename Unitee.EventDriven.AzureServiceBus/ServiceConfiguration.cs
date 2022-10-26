@@ -1,8 +1,8 @@
 using Microsoft.Extensions.DependencyInjection;
-using ServiceBus.Abstraction;
-using ServiceBus.AzureServiceBus;
+using Unitee.EventDriven.Abstraction;
+using Unitee.EventDriven.AzureServiceBus;
 
-namespace ServiceBus.DependencyInjection;
+namespace Unitee.EventDriven.DependencyInjection;
 
 public static class ServicesConfiguration
 {
@@ -22,14 +22,5 @@ public static class ServicesConfiguration
     {
         services.AddHostedService(ctx =>
             new AzureServiceBusBackgroundReceiver(ctx, connectionString, topic, subscription));
-    }
-
-    public static void RegisterRedisStreamConsumer<TConsumer>(this IServiceCollection services, string serviceName)
-        where TConsumer : class, IConsumer
-    {
-        services.AddScoped<TConsumer>();
-
-        services.AddHostedService(ctx =>
-            new RedisStreamBackgroundReceiver<TConsumer>(ctx, serviceName));
     }
 }

@@ -1,7 +1,7 @@
 using Azure.Messaging.ServiceBus;
-using ServiceBus.Models;
+using Unitee.EventDriven.Models;
 
-namespace ServiceBus.AzureServiceBus;
+namespace Unitee.EventDriven.AzureServiceBus;
 
 public static class ServiceBusMessageFactory
 {

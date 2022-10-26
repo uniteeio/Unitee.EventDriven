@@ -1,10 +1,10 @@
 using System.Text.Json;
 using Azure.Messaging.ServiceBus;
 using Microsoft.Extensions.DependencyInjection;
-using ServiceBus.Abstraction;
-using ServiceBus.Helpers;
+using Unitee.EventDriven.Abstraction;
+using Unitee.EventDriven.Helpers;
 
-namespace ServiceBus.AzureServiceBus;
+namespace Unitee.EventDriven.AzureServiceBus;
 
 public interface IAzureServiceBusMessageHandler : IMessageHandler<ServiceBusReceivedMessage> { }
 

@@ -1,12 +1,13 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
+
   <PropertyGroup>
     <TargetFramework>net6.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
 
     <Authors>CREAC'H, Unitee</Authors>
-    <PackageId>Unitee.ServiceBus</PackageId>
+    <PackageId>Unitee.EventDriven.AzureServiceBus</PackageId>
     <NeutralLanguage>en-US</NeutralLanguage>
     <Title>Light abstraction for Service Bus</Title>
     <Description>Light abstraction and good practices for Service Bus at Unitee</Description>
@@ -17,21 +18,19 @@
 
     <PackageIcon>Logo.png</PackageIcon>
     <PackageReadmeFile>README.md</PackageReadmeFile>
-
   </PropertyGroup>
 
   <ItemGroup>
-    <None Include="Logo/Logo.png" Pack="true" PackagePath="\" />
-    <None Include="README.md" Pack="true" PackagePath="\" />
+    <None Include="../Logo/Logo.png" Pack="true" PackagePath="\" />
+    <None Include="../README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Unitee.EventDriven.Abstraction\Unitee.EventDriven.Abstraction.csproj" />
   </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Azure.Messaging.ServiceBus" Version="7.11.0" />
-    <PackageReference Include="CSRedisCore" Version="3.8.669" />
-    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="6.0.1" />
-    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="6.0.0" />
-    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="6.0.2" />
-    <PackageReference Include="StackExchange.Redis" Version="2.6.70" />
   </ItemGroup>
 
 </Project>

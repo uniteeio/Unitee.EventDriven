@@ -3,7 +3,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
-namespace ServiceBus.AzureServiceBus;
+namespace Unitee.EventDriven.AzureServiceBus;
 
 public class AzureServiceBusBackgroundReceiver : BackgroundService
 {

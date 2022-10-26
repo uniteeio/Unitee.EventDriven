@@ -1,4 +1,4 @@
-namespace ServiceBus.Abstraction;
+namespace Unitee.EventDriven.Abstraction;
 
 public interface IMessageHandler<T>
 {

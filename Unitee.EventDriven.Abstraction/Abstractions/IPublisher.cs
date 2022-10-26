@@ -1,5 +1,5 @@
-using ServiceBus.Models;
-namespace ServiceBus.Abstraction;
+using Unitee.EventDriven.Models;
+namespace Unitee.EventDriven.Abstraction;
 
 public interface IPublisher<TResult, TSequence>
 {
