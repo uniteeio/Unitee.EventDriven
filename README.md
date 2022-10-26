@@ -25,7 +25,7 @@ dotnet add package Unitee.EventDriven.AzureServiceBus
 ```
 
 ```
-dotnet add package Unitee.EventDriven.RedisStreal
+dotnet add package Unitee.EventDriven.RedisStream
 ```
 
 
