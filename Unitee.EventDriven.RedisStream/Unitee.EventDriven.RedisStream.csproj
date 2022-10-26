@@ -5,8 +5,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="CSRedisCore" Version="3.8.669" />
-    <PackageReference Include="StackExchange.Redis" Version="2.6.70" />
+    <PackageReference Include="FreeRedis" Version="1.0.2" />
   </ItemGroup>
 
   <PropertyGroup>

@@ -1,19 +1,19 @@
 using System.Text.Json;
+using FreeRedis;
 using Unitee.EventDriven.Abstraction;
 using Unitee.EventDriven.Helpers;
 using Unitee.EventDriven.Models;
-using StackExchange.Redis;
 
 namespace Unitee.RedisStream;
 
 
-public interface IRedisStreamPublisher : IPublisher<RedisValue, string> { }
+public interface IRedisStreamPublisher : IPublisher<string, string> { }
 
 public class RedisStreamPublisher : IRedisStreamPublisher
 {
-    private readonly IConnectionMultiplexer _redis;
+    private readonly RedisClient _redis;
 
-    public RedisStreamPublisher(IConnectionMultiplexer redis)
+    public RedisStreamPublisher(RedisClient redis)
     {
         _redis = redis;
     }
@@ -23,14 +23,13 @@ public class RedisStreamPublisher : IRedisStreamPublisher
         throw new NotImplementedException();
     }
 
-    public async Task<RedisValue> PublishAsync<TMessage>(TMessage message)
+    public async Task<string> PublishAsync<TMessage>(TMessage message)
     {
-        var db = _redis.GetDatabase();
         var subject = MessageHelper.GetSubject<TMessage>();
-        return await db.StreamAddAsync(subject, "Body", JsonSerializer.Serialize(message));
+        return await _redis.XAddAsync(subject, "Body", message);
     }
 
-    public Task<RedisValue> PublishAsync<TMessage>(TMessage message, MessageOptions options)
+    public Task<string> PublishAsync<TMessage>(TMessage message, MessageOptions options)
     {
         throw new NotImplementedException();
     }
