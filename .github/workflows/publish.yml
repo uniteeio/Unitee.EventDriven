@@ -40,7 +40,7 @@ jobs:
 
       - name: Push generated package
         run: dotnet nuget push ./out/*.nupkg -k ${{secrets.NUGET_API_KEY}} -s https://api.nuget.org/v3/index.json --skip-duplicate -n
-        working-directory: Unitee.EventDriven.AzureSeriveBus
+        working-directory: Unitee.EventDriven.AzureServiceBus
 
       - name: Push generated package
         run: dotnet nuget push ./out/*.nupkg -k ${{secrets.NUGET_API_KEY}} -s https://api.nuget.org/v3/index.json --skip-duplicate -n
