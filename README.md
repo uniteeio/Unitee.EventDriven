@@ -2,7 +2,7 @@
 
 [https://github.com/uniteeio/service-bus](https://github.com/uniteeio/service-bus)
 
-![logo](./Logo/LogoText.png)
+![logo](./Logo/Logo.png)
 
 ## Concepts
 
