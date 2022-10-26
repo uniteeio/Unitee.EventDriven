@@ -6,7 +6,7 @@ public static class MessageHelper
 {
 
     /// <summary>
-    /// Récupère le sujet d'un message.
+    /// Get the subject of a message
     /// </summary>
     public static string GetSubject<T>()
     {
