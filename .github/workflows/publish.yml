@@ -29,6 +29,19 @@ jobs:
         run: |
           dotnet build -c Release -p:Version=${RELEASE_VERSION}
           dotnet pack -c Release -p:Version=${RELEASE_VERSION} -o out
+        working-directory: Unitee.EventDriven.AzureServiceBus
+
+
+      - name: Build and generate NuGet package
+        run: |
+          dotnet build -c Release -p:Version=${RELEASE_VERSION}
+          dotnet pack -c Release -p:Version=${RELEASE_VERSION} -o out
+        working-directory: Unitee.EventDriven.RedisStream
 
       - name: Push generated package
-        run: dotnet nuget push /home/runner/work/service-bus/service-bus/out/*.nupkg -k ${{secrets.NUGET_API_KEY}} -s https://api.nuget.org/v3/index.json --skip-duplicate -n
+        run: dotnet nuget push ./out/*.nupkg -k ${{secrets.NUGET_API_KEY}} -s https://api.nuget.org/v3/index.json --skip-duplicate -n
+        working-directory: Unitee.EventDriven.AzureSeriveBus
+
+      - name: Push generated package
+        run: dotnet nuget push ./out/*.nupkg -k ${{secrets.NUGET_API_KEY}} -s https://api.nuget.org/v3/index.json --skip-duplicate -n
+        working-directory: Unitee.EventDriven.RedisStream
