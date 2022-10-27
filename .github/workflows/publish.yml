@@ -31,12 +31,17 @@ jobs:
           dotnet pack -c Release -p:Version=${RELEASE_VERSION} -o out
         working-directory: Unitee.EventDriven.AzureServiceBus
 
-
       - name: Build and generate NuGet package
         run: |
           dotnet build -c Release -p:Version=${RELEASE_VERSION}
           dotnet pack -c Release -p:Version=${RELEASE_VERSION} -o out
         working-directory: Unitee.EventDriven.RedisStream
+
+      - name: Build and generate NuGet package
+        run: |
+          dotnet build -c Release -p:Version=${RELEASE_VERSION}
+          dotnet pack -c Release -p:Version=${RELEASE_VERSION} -o out
+        working-directory: Unitee.EventDriven.Abstraction
 
       - name: Push generated package
         run: dotnet nuget push ./out/*.nupkg -k ${{secrets.NUGET_API_KEY}} -s https://api.nuget.org/v3/index.json --skip-duplicate -n
@@ -45,3 +50,7 @@ jobs:
       - name: Push generated package
         run: dotnet nuget push ./out/*.nupkg -k ${{secrets.NUGET_API_KEY}} -s https://api.nuget.org/v3/index.json --skip-duplicate -n
         working-directory: Unitee.EventDriven.RedisStream
+
+      - name: Push generated package
+        run: dotnet nuget push ./out/*.nupkg -k ${{secrets.NUGET_API_KEY}} -s https://api.nuget.org/v3/index.json --skip-duplicate -n
+        working-directory: Unitee.EventDriven.Abstraction
