@@ -4,86 +4,118 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Unitee.EventDriven.Abstraction;
 using Unitee.EventDriven.Helpers;
-using FreeRedis;
+using StackExchange.Redis;
+using Unitee.EventDriven.RedisStream;
 
 namespace Unitee.EventDriven.DependencyInjection;
 
-public class RedisStreamBackgroundReceiver<TConsumer> : BackgroundService where TConsumer : class, IConsumer
+public class RedisStreamBackgroundReceiver : BackgroundService
 {
-    private readonly RedisClient _freeRedisClient;
-    private readonly ILogger<RedisStreamBackgroundReceiver<TConsumer>> _logger;
+    private readonly ILogger<RedisStreamBackgroundReceiver> _logger;
     private readonly string _serviceName;
+    private readonly IConnectionMultiplexer _redis;
     private readonly IServiceProvider _services;
 
     public RedisStreamBackgroundReceiver(IServiceProvider services, string serviceName)
     {
         _services = services;
-        _freeRedisClient = services.GetRequiredService<RedisClient>();
-        _logger = services.GetRequiredService<ILogger<RedisStreamBackgroundReceiver<TConsumer>>>();
+        _logger = services.GetRequiredService<ILogger<RedisStreamBackgroundReceiver>>();
         _serviceName = serviceName;
+        _redis = services.GetRequiredService<IConnectionMultiplexer>();
+    }
+
+    private static (string?, object?) ParseStreamEntry<TMessage>(StreamEntry entry)
+    {
+        var body = entry["Body"];
+
+        if (body.IsNull)
+        {
+            return (null, null);
+        }
+
+#pragma warning disable CS8604
+        return (entry.Id, JsonSerializer.Deserialize<TMessage>(body));
+#pragma warning restore CS8604
+    }
+
+    private async void ProcessStreamEntries<TMessage>(IEnumerable<StreamEntry> entries, IConsumer<TMessage> consumer)
+    {
+        var db = _redis.GetDatabase();
+        var subject = MessageHelper.GetSubject<TMessage>();
+
+        foreach (var entry in entries)
+        {
+            var processed = ParseStreamEntry<TMessage>(entry);
+
+            if (processed.Item1 is not null && processed.Item2 is not null)
+            {
+                try
+                {
+                    await consumer.ConsumeAsync((TMessage)processed.Item2);
+                    await db.StreamAcknowledgeAsync(subject, _serviceName, processed.Item1);
+                }
+                catch (Exception e)
+                {
+                    // throwing stop the background service
+                    _logger.LogError(e, "Error while processing message");
+                }
+            }
+        }
+    }
+
+    private async Task<StreamEntry[]> Read(string subject)
+    {
+        var db = _redis.GetDatabase();
+        try
+        {
+            return await db.StreamReadGroupAsync(subject, _serviceName, "Default", ">");
+        }
+        catch (RedisException e) when (e.Message.StartsWith("NOGROUP"))
+        {
+            await db.StreamCreateConsumerGroupAsync(subject, _serviceName, StreamPosition.NewMessages);
+            return await Read(subject);
+        }
+    }
+
+    private async void Register<TMessage>(IRedisStreamConsumer<TMessage> consumer)
+    {
+        var db = _redis.GetDatabase();
+        var subject = MessageHelper.GetSubject<TMessage>();
+
+        try
+        {
+            await db.StreamCreateConsumerGroupAsync(subject, _serviceName, StreamPosition.NewMessages);
+        }
+        catch (StackExchange.Redis.RedisServerException e) when (e.Message.StartsWith("BUSYGROUP"))
+        { }
+
+        var oldMessages = await Read(subject);
+
+        ProcessStreamEntries(oldMessages, consumer);
+
+        _redis.GetSubscriber().Subscribe(subject, async (channel, value) =>
+        {
+            var db = _redis.GetDatabase();
+            var streamEntries = await Read(subject);
+            ProcessStreamEntries(streamEntries, consumer);
+        });
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        _ = Task.Run(async () =>
+        await Task.Yield();
+
+        using var scope = _services.CreateScope();
+
+        var consumers = scope.ServiceProvider.GetServices<IConsumer>();
+        foreach (var c in consumers)
         {
-            var TMessage = typeof(TConsumer).GetInterface("IConsumer`1")?.GenericTypeArguments[0];
+            Register((dynamic)c);
+        }
 
-            ArgumentNullException.ThrowIfNull(TMessage);
-
-            var subject = MessageHelper.GetSubject<TConsumer>();
-
-            try
-            {
-                await _freeRedisClient.XGroupCreateAsync(subject, _serviceName, MkStream: true);
-            }
-            catch (RedisServerException)
-            {
-            }
-
-            while (!stoppingToken.IsCancellationRequested)
-            {
-                try
-                {
-                    var result = await _freeRedisClient.XReadGroupAsync(_serviceName, "Default", 1, 3000, false, subject, ">").ConfigureAwait(false);
-
-
-                    if (result.Length is 0)
-                    {
-                        continue;
-                    }
-
-                    var message = result.First();
-                    var body = (string?)message.entries.Where(x => x.fieldValues[0] is "Body").Select(x => x.fieldValues[1]).FirstOrDefault();
-
-                    using var scope = _services.CreateScope();
-                    var consumer = scope.ServiceProvider.GetRequiredService<TConsumer>() as IConsumer;
-
-                    if (body is not null)
-                    {
-                        var deserialized = JsonSerializer.Deserialize(body, TMessage);
-
-                        try
-                        {
-                            Task? t = consumer.GetType().GetMethod("ConsumeAsync")?.Invoke(consumer, new[] { deserialized }) as Task;
-
-                            if (t is not null)
-                            {
-                                await t;
-                                _freeRedisClient.XAck(subject, "Default", message.entries[0].id);
-                            }
-                        }
-                        catch (Exception e)
-                        {
-                            _logger.LogError(e, "An exception occured in the consumer {}", consumer.GetType().Name);
-                        }
-                    }
-                }
-                catch (RedisServerException)
-                {
-                    await _freeRedisClient.XGroupCreateAsync(subject, _serviceName, MkStream: true);
-                }
-            }
-        }, stoppingToken);
+        while (!stoppingToken.IsCancellationRequested)
+        {
+            await Task.Delay(3000, stoppingToken);
+        }
     }
 }
