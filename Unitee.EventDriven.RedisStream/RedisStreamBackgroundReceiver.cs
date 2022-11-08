@@ -126,11 +126,11 @@ public class RedisStreamBackgroundReceiver : BackgroundService
             {
                 var topMessage = topMessages[0];
                 var now = DateTimeOffset.Now.ToUnixTimeSeconds();
-                if (now >= topMessage.Score && topMessage.Element.HasValue is true && db.LockQuery(topMessage.Element.ToString()).HasValue is false)
+                if (now >= topMessage.Score && topMessage.Element.HasValue is true && db.LockQuery($"LOCK:{topMessage.Element}").HasValue is false)
                 {
                     try
                     {
-                        await db.LockTakeAsync(topMessage.Element.ToString(), _serviceName, TimeSpan.FromSeconds(3));
+                        await db.LockTakeAsync($"LOCK:{topMessage.Element}", _serviceName, TimeSpan.FromSeconds(30));
 
                         var distance = TimeSpan.FromSeconds(now - topMessage.Score);
                         _logger.LogInformation("Processing delayed message with delayed time {Distance}", distance);
@@ -195,7 +195,7 @@ public class RedisStreamBackgroundReceiver : BackgroundService
                     finally
                     {
                         await db.SortedSetRemoveAsync("SCHEDULED_MESSAGES", topMessage.Element);
-                        await db.LockReleaseAsync(topMessage.Element.ToString(), _serviceName);
+                        await db.LockReleaseAsync($"LOCK:{topMessage.Element}", _serviceName);
                     }
                 }
             }
