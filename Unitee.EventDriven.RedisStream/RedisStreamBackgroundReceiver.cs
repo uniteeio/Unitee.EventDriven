@@ -6,6 +6,9 @@ using Unitee.EventDriven.Abstraction;
 using Unitee.EventDriven.Helpers;
 using StackExchange.Redis;
 using Unitee.EventDriven.RedisStream;
+using Unitee.EventDriven.RedisStream.Models;
+using Unitee.EventDriven.Attributes;
+using Unitee.RedisStream;
 
 namespace Unitee.EventDriven.DependencyInjection;
 
@@ -86,7 +89,7 @@ public class RedisStreamBackgroundReceiver : BackgroundService
         {
             await db.StreamCreateConsumerGroupAsync(subject, _serviceName, StreamPosition.NewMessages);
         }
-        catch (StackExchange.Redis.RedisServerException e) when (e.Message.StartsWith("BUSYGROUP"))
+        catch (RedisServerException e) when (e.Message.StartsWith("BUSYGROUP"))
         { }
 
         var oldMessages = await Read(subject);
@@ -115,6 +118,88 @@ public class RedisStreamBackgroundReceiver : BackgroundService
 
         while (!stoppingToken.IsCancellationRequested)
         {
+            var db = _redis.GetDatabase();
+
+            var topMessages = await db.SortedSetRangeByRankWithScoresAsync("SCHEDULED_MESSAGES", 0, 0);
+
+            if (topMessages is not { Length: 0 })
+            {
+                var topMessage = topMessages[0];
+                var now = DateTimeOffset.Now.ToUnixTimeSeconds();
+                if (now >= topMessage.Score && topMessage.Element.HasValue is true && db.LockQuery(topMessage.Element.ToString()).HasValue is false)
+                {
+                    try
+                    {
+                        await db.LockTakeAsync(topMessage.Element.ToString(), _serviceName, TimeSpan.FromSeconds(3));
+
+                        var distance = TimeSpan.FromSeconds(now - topMessage.Score);
+                        _logger.LogInformation("Processing delayed message with delayed time {Distance}", distance);
+
+#pragma warning disable CS8604
+                        var message = JsonSerializer.Deserialize<RedisStreamScheduledMessageType<object>>(topMessage.Element);
+#pragma warning restore CS8604
+
+                        if (message?.Subject is not null)
+                        {
+                            // find the right class in the assembly
+                            var typesWithMyAttribute =
+                                from a in AppDomain.CurrentDomain.GetAssemblies()
+                                from t in a.GetTypes()
+                                let attributes = t.GetCustomAttributes(typeof(SubjectAttribute), true)
+                                where attributes != null && attributes.Length > 0
+                                where attributes.Cast<SubjectAttribute>().FirstOrDefault()?.Subject == message.Subject
+                                select new { Type = t };
+
+                            var type = typesWithMyAttribute.SingleOrDefault()?.Type;
+
+                            if (type is null)
+                            {
+                                throw new CannotHandleScheduledMessageException("A scheduled message was found but a class with the subject was not found in the assembly. So the message has been ignored.");
+                            }
+
+                            JsonElement? concreteBodyType = message.Body as JsonElement?;
+                            if (concreteBodyType is null)
+                            {
+                                throw new CannotHandleScheduledMessageException("Body cannot be null. As a workaround, you can use an empty object instead.");
+                            }
+
+                            var body = JsonSerializer.Deserialize((JsonElement)concreteBodyType, type);
+
+
+                            var publisher = scope.ServiceProvider.GetRequiredService<IRedisStreamPublisher>();
+
+                            var task = (Task?)publisher
+                                .GetType()
+                                .GetMethods()
+                                .Where(x => x.Name == "PublishAsync" && x.GetParameters().Length == 1)
+                                .Single()
+                                .MakeGenericMethod(type)
+                                .Invoke(publisher, new[] { body });
+
+                            if (task is not null)
+                                await task;
+                            else
+                            {
+                                throw new CannotHandleScheduledMessageException("We didn't find any suitable method to publish the message.");
+                            }
+                        }
+                    }
+                    catch (CannotHandleScheduledMessageException e)
+                    {
+                        _logger.LogWarning("{}", e.Message);
+                    }
+                    catch (Exception e)
+                    {
+                        _logger.LogError(e, "{}", e.Message);
+                    }
+                    finally
+                    {
+                        await db.SortedSetRemoveAsync("SCHEDULED_MESSAGES", topMessage.Element);
+                        await db.LockReleaseAsync(topMessage.Element.ToString(), _serviceName);
+                    }
+                }
+            }
+
             await Task.Delay(3000, stoppingToken);
         }
     }
