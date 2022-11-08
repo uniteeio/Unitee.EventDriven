@@ -189,7 +189,6 @@ public class RedisStreamBackgroundReceiver : BackgroundService
 
                             var body = JsonSerializer.Deserialize((JsonElement)concreteBodyType, type);
 
-
                             var publisher = scope.ServiceProvider.GetRequiredService<IRedisStreamPublisher>();
 
                             var task = (Task?)publisher
@@ -221,6 +220,8 @@ public class RedisStreamBackgroundReceiver : BackgroundService
                         await db.SortedSetRemoveAsync("SCHEDULED_MESSAGES", topMessage.Element);
                         await db.LockReleaseAsync($"LOCK:{topMessage.Element}", _serviceName);
                     }
+
+                    continue;
                 }
             }
 
