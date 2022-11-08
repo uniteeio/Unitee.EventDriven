@@ -42,21 +42,15 @@ public class RedisStreamBackgroundReceiver : BackgroundService
     }
 
 #pragma warning disable CA1822
-    private async Task<bool> TryConsume<TMessage>(TMessage message, string subjectRegistered, IRedisStreamConsumer<TMessage> consumer)
+    private async Task<bool> TryConsume<TMessage>(IRedisStreamConsumer<TMessage> consumer, TMessage message)
     {
-        if (MessageHelper.GetSubject<TMessage>() != subjectRegistered)
-        {
-            return false;
-        }
-
-        _logger.LogDebug("Consuming message {} with subject: {}", message, subjectRegistered);
-
+        _logger.LogDebug("Consuming message {} with subject: {}", message, MessageHelper.GetSubject<TMessage>());
         await consumer.ConsumeAsync(message);
         return true;
     }
 #pragma warning restore CA1822
 
-    private async Task ProcessStreamEntries<TMessage>(IEnumerable<StreamEntry> entries, string subjectRegistered)
+    private async Task ProcessStreamEntries<TMessage>(IEnumerable<StreamEntry> entries)
     {
         var db = _redis.GetDatabase();
         var subject = MessageHelper.GetSubject<TMessage>();
@@ -71,17 +65,14 @@ public class RedisStreamBackgroundReceiver : BackgroundService
                 {
                     using var scope = _services.CreateScope();
                     var consumers = scope.ServiceProvider.GetServices<IConsumer>();
-                    var consumed = false;
-                    foreach (var consumer in consumers)
-                    {
-                        consumed = await TryConsume<TMessage>((TMessage)processed.Item2, subjectRegistered, (dynamic)consumer);
-                        if (consumed is true)
-                        {
-                            await db.StreamAcknowledgeAsync(subject, _serviceName, processed.Item1);
-                            break;
-                        }
-                    }
+                    var consumer =
+                        consumers.FirstOrDefault(c => MessageHelper.GetSubject(c.GetType().GetInterface("IRedisStreamConsumer`1")?.GenericTypeArguments?[0]) == MessageHelper.GetSubject<TMessage>());
 
+                    if (consumer is not null)
+                    {
+                        await TryConsume<TMessage>((dynamic)consumer, (TMessage)processed.Item2);
+                        await db.StreamAcknowledgeAsync(subject, _serviceName, processed.Item1);
+                    }
                 }
                 catch (Exception e)
                 {
@@ -120,13 +111,13 @@ public class RedisStreamBackgroundReceiver : BackgroundService
 
         var oldMessages = await Read(subject);
 
-        await ProcessStreamEntries<TMessage>(oldMessages, subject);
+        await ProcessStreamEntries<TMessage>(oldMessages);
 
         _redis.GetSubscriber().Subscribe(subject, async (channel, value) =>
         {
             var db = _redis.GetDatabase();
             var streamEntries = await Read(subject);
-            await ProcessStreamEntries<TMessage>(streamEntries, subject);
+            await ProcessStreamEntries<TMessage>(streamEntries);
         });
     }
 
