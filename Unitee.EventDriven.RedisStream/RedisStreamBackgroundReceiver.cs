@@ -74,7 +74,7 @@ public class RedisStreamBackgroundReceiver : BackgroundService
                     var consumed = false;
                     foreach (var consumer in consumers)
                     {
-                        consumed = await TryConsume((TMessage)processed.Item2, subjectRegistered, (dynamic)consumer);
+                        consumed = await TryConsume<TMessage>((TMessage)processed.Item2, subjectRegistered, (dynamic)consumer);
                         if (consumed is true)
                         {
                             await db.StreamAcknowledgeAsync(subject, _serviceName, processed.Item1);
