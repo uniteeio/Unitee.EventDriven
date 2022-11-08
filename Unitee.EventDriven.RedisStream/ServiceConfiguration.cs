@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using Unitee.EventDriven.RedisStream;
 
 namespace Unitee.EventDriven.DependencyInjection;
 

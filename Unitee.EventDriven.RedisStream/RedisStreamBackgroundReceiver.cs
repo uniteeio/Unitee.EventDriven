@@ -10,7 +10,7 @@ using Unitee.EventDriven.RedisStream.Models;
 using Unitee.EventDriven.Attributes;
 using Unitee.RedisStream;
 
-namespace Unitee.EventDriven.DependencyInjection;
+namespace Unitee.EventDriven.RedisStream;
 
 public class RedisStreamBackgroundReceiver : BackgroundService
 {
@@ -48,6 +48,8 @@ public class RedisStreamBackgroundReceiver : BackgroundService
         {
             return false;
         }
+
+        _logger.LogDebug("Consuming message {} with subject: {}", message, subjectRegistered);
 
         await consumer.ConsumeAsync(message);
         return true;
