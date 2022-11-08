@@ -125,14 +125,14 @@ public class RedisStreamBackgroundReceiver : BackgroundService
             if (topMessages is not { Length: 0 })
             {
                 var topMessage = topMessages[0];
-                var now = DateTimeOffset.Now.ToUnixTimeSeconds();
+                var now = DateTimeOffset.Now.ToUnixTimeMilliseconds();
                 if (now >= topMessage.Score && topMessage.Element.HasValue is true && db.LockQuery($"LOCK:{topMessage.Element}").HasValue is false)
                 {
                     try
                     {
                         await db.LockTakeAsync($"LOCK:{topMessage.Element}", _serviceName, TimeSpan.FromSeconds(30));
 
-                        var distance = TimeSpan.FromSeconds(now - topMessage.Score);
+                        var distance = TimeSpan.FromMilliseconds(now - topMessage.Score);
                         _logger.LogInformation("Processing delayed message with delayed time {Distance}", distance);
 
 #pragma warning disable CS8604
