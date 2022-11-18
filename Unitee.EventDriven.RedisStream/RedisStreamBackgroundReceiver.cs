@@ -61,23 +61,24 @@ public class RedisStreamBackgroundReceiver : BackgroundService
 
             if (processed.Item1 is not null && processed.Item2 is not null)
             {
-                try
-                {
-                    using var scope = _services.CreateScope();
-                    var consumers = scope.ServiceProvider.GetServices<IConsumer>();
-                    var consumer =
-                        consumers.FirstOrDefault(c => MessageHelper.GetSubject(c.GetType().GetInterface("IRedisStreamConsumer`1")?.GenericTypeArguments?[0]) == MessageHelper.GetSubject<TMessage>());
+                using var scope = _services.CreateScope();
+                var consumers = scope.ServiceProvider.GetServices<IConsumer>();
+                var matchedConsumers =
+                    consumers.Where(c => MessageHelper.GetSubject(c.GetType().GetInterface("IRedisStreamConsumer`1")?.GenericTypeArguments?[0]) == MessageHelper.GetSubject<TMessage>())
+                    .ToList();
 
-                    if (consumer is not null)
+                foreach (var consumer in matchedConsumers)
+                {
+                    try
                     {
                         await TryConsume<TMessage>((dynamic)consumer, (TMessage)processed.Item2);
                         await db.StreamAcknowledgeAsync(subject, _serviceName, processed.Item1);
                     }
-                }
-                catch (Exception e)
-                {
-                    // throwing stop the background service
-                    _logger.LogError(e, "Error while processing message");
+                    catch (Exception e)
+                    {
+                        // throwing stop the background service
+                        _logger.LogError(e, "Error while processing message");
+                    }
                 }
             }
         }
@@ -133,11 +134,12 @@ public class RedisStreamBackgroundReceiver : BackgroundService
             Register((dynamic)c);
         }
 
+        // Scheduled messages
         while (!stoppingToken.IsCancellationRequested)
         {
             var db = _redis.GetDatabase();
 
-            var topMessages = await db.SortedSetRangeByRankWithScoresAsync("SCHEDULED_MESSAGES", 0, 0);
+            var topMessages = await db.SortedSetRangeByRankWithScoresAsync("SCHEDULED_MESSAGES", start: 0, stop: 0);
 
             if (topMessages is not { Length: 0 })
             {
@@ -158,7 +160,7 @@ public class RedisStreamBackgroundReceiver : BackgroundService
 
                         if (message?.Subject is not null)
                         {
-                            // find the right class in the assembly
+                            // find the right event POCO class in the assembly in order to publish it
                             var typesWithMyAttribute =
                                 from a in AppDomain.CurrentDomain.GetAssemblies()
                                 from t in a.GetTypes()
@@ -180,8 +182,10 @@ public class RedisStreamBackgroundReceiver : BackgroundService
                                 throw new CannotHandleScheduledMessageException("Body cannot be null. As a workaround, you can use an empty object instead.");
                             }
 
+                            // build the message
                             var body = JsonSerializer.Deserialize((JsonElement)concreteBodyType, type);
 
+                            // publish the message
                             var publisher = scope.ServiceProvider.GetRequiredService<IRedisStreamPublisher>();
 
                             var task = (Task?)publisher
