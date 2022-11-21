@@ -32,9 +32,6 @@ public class BaseTests : IClassFixture<RedisFixctures>
         _services.AddLogging();
         _services.AddSingleton<IConnectionMultiplexer>(_redis);
         _services.AddScoped<IRedisStreamPublisher, RedisStreamPublisher>();
-
-        var randomName = Guid.NewGuid().ToString();
-
         _services.AddScoped(provider => new RedisStreamMessagesProcessor(name, provider));
 
         _services.AddSingleton<RedisStreamBackgroundReceiver>(x => new RedisStreamBackgroundReceiver(x, name));
