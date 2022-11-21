@@ -11,40 +11,29 @@ namespace Unitee.EventDriven.RedisStream.Tests;
 [Subject("TEST_EVENT")]
 public record TestEvent(string ATestString);
 
-public class UnitTest1
+public class UnitTest1: IClassFixture<Fixtures>
 {
-    public UnitTest1()
+    private readonly IServiceCollection _services;
+
+    public UnitTest1(Fixtures f)
     {
+        _services = f.Services;
     }
 
     [Fact]
     public async Task Test1()
     {
-        IServiceCollection services = new ServiceCollection();
-        var redis = await ConnectionMultiplexer.ConnectAsync("localhost:6379");
-
-        services.AddLogging();
-        services.AddSingleton<IConnectionMultiplexer>(redis);
-        services.AddScoped<IRedisStreamPublisher, RedisStreamPublisher>();
-
-        services.AddScoped(provider => new RedisStreamMessagesProcessor("Test", provider,
-            provider.GetRequiredService<IConnectionMultiplexer>(),
-            provider.GetRequiredService<ILogger<RedisStreamMessagesProcessor>>()));
-
         var consumerInstance = Mock.Of<IRedisStreamConsumer<TestEvent>>();
+        _services.AddSingleton<IConsumer>(consumerInstance);
 
-        services.AddSingleton<RedisStreamBackgroundReceiver>(x => new RedisStreamBackgroundReceiver(x, "Test"));
-        services.AddSingleton<IConsumer>(consumerInstance);
-
-        var provider = services.BuildServiceProvider();
-
+        var provider = _services.BuildServiceProvider();
         var publisher = provider.GetRequiredService<IRedisStreamPublisher>();
 
         await publisher.PublishAsync(new TestEvent("World"));
 
         var backgroundService = provider.GetService<RedisStreamBackgroundReceiver>();
         await backgroundService.StartAsync(CancellationToken.None);
-        await Task.Delay(1000);
+        await Task.Delay(500);
         await backgroundService.StopAsync(CancellationToken.None);
 
         var moc = Mock.Get(consumerInstance);
