@@ -10,7 +10,7 @@ public static class ServicesConfiguration
 {
     public static void AddRedisStreamBackgroundReceiver(this IServiceCollection services, string serviceName)
     {
-        services.AddScoped(provider => new RedisStreamMessagesProcessor(serviceName, provider, provider.GetRequiredService<IConnectionMultiplexer>(), provider.GetRequiredService<ILogger<RedisStreamMessagesProcessor>>()));
+        services.AddScoped(provider => new RedisStreamMessagesProcessor(serviceName, provider));
 
         services.AddHostedService(ctx =>
             new RedisStreamBackgroundReceiver(ctx, serviceName));

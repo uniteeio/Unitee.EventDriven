@@ -13,31 +13,43 @@ public record TestEvent(string ATestString);
 
 public class BaseTests
 {
-    private readonly IServiceCollection _services;
-
     public BaseTests()
     {
-        _services = new ServiceCollection();
+
+    }
+
+    IServiceCollection GetServices()
+    {
+        var _services = new ServiceCollection();
         var redis = ConnectionMultiplexer.Connect("localhost:6379");
 
         _services.AddLogging();
         _services.AddSingleton<IConnectionMultiplexer>(redis);
         _services.AddScoped<IRedisStreamPublisher, RedisStreamPublisher>();
 
-        _services.AddScoped(provider => new RedisStreamMessagesProcessor("Test", provider,
-                    provider.GetRequiredService<IConnectionMultiplexer>(),
-                    provider.GetRequiredService<ILogger<RedisStreamMessagesProcessor>>()));
+        _services.AddScoped(provider => new RedisStreamMessagesProcessor("Test", provider));
 
-        _services.AddScoped<RedisStreamBackgroundReceiver>(x => new RedisStreamBackgroundReceiver(x, "Test"));
+        _services.AddSingleton<RedisStreamBackgroundReceiver>(x => new RedisStreamBackgroundReceiver(x, "Test"));
+        return _services;
+    }
+
+    public class Consumer : IRedisStreamConsumer<TestEvent>
+    {
+        public Task ConsumeAsync(TestEvent message)
+        {
+            Console.WriteLine(message.ATestString);
+            return Task.CompletedTask;
+        }
     }
 
     [Fact]
     public async Task PendingMessages_ShouldBeConsumedAtStart()
     {
-        var consumerInstance = Mock.Of<IRedisStreamConsumer<TestEvent>>();
-        _services.AddScoped<IConsumer>(x => consumerInstance);
+        var services = GetServices();
+        var consumerInstance = new Mock<IRedisStreamConsumer<TestEvent>>();
+        services.AddScoped<IConsumer>(x => consumerInstance.Object);
 
-        var provider = _services.BuildServiceProvider();
+        var provider = services.BuildServiceProvider();
         var publisher = provider.GetRequiredService<IRedisStreamPublisher>();
 
         await publisher.PublishAsync(new TestEvent("World"));
@@ -47,59 +59,54 @@ public class BaseTests
         await Task.Delay(500);
         await backgroundService.StopAsync(CancellationToken.None);
 
-        var moc = Mock.Get(consumerInstance);
-        moc.Verify(x=> x.ConsumeAsync(new TestEvent("World")), Times.Once);
+        consumerInstance.Verify(x=> x.ConsumeAsync(new TestEvent("World")), Times.Once);
     }
 
     [Fact]
     public async Task NewMessages_ShouldBeConsumed()
     {
-        var consumerInstance = Mock.Of<IRedisStreamConsumer<TestEvent>>();
-        _services.AddScoped<IConsumer>(x => consumerInstance);
+        var services = GetServices();
+        var consumerInstance = new Mock<IRedisStreamConsumer<TestEvent>>();
+        services.AddScoped<IConsumer>(x => consumerInstance.Object);
 
-        var provider = _services.BuildServiceProvider();
+        var provider = services.BuildServiceProvider();
         var publisher = provider.GetRequiredService<IRedisStreamPublisher>();
 
         var backgroundService = provider.GetService<RedisStreamBackgroundReceiver>();
         await backgroundService.StartAsync(CancellationToken.None);
-        await Task.Delay(100);
+        await Task.Delay(3000);
         await publisher.PublishAsync(new TestEvent("World"));
-        await Task.Delay(400);
+        await Task.Delay(500);
         await backgroundService.StopAsync(CancellationToken.None);
 
-        var moc = Mock.Get(consumerInstance);
-        moc.Verify(x=> x.ConsumeAsync(new TestEvent("World")), Times.Once);
+        consumerInstance.Verify(x=> x.ConsumeAsync(new TestEvent("World")), Times.Once);
     }
 
-        [Fact]
+    [Fact]
     public async Task MultipleConsumers_ShoudBeCaled()
     {
-        var consumerInstance1 = Mock.Of<IRedisStreamConsumer<TestEvent>>();
-        var consumerInstance2 = Mock.Of<IRedisStreamConsumer<TestEvent>>();
-        var consumerInstance3 = Mock.Of<IRedisStreamConsumer<TestEvent>>();
+        var services = GetServices();
 
-        _services.AddScoped<IConsumer>(x => consumerInstance1);
-        _services.AddScoped<IConsumer>(x => consumerInstance2);
-        _services.AddScoped<IConsumer>(x => consumerInstance3);
+        var consumerInstance1 = new Mock<IRedisStreamConsumer<TestEvent>>();
+        var consumerInstance2 = new Mock<IRedisStreamConsumer<TestEvent>>();
+        var consumerInstance3 = new Mock<IRedisStreamConsumer<TestEvent>>();
 
-        var provider = _services.BuildServiceProvider();
+        services.AddScoped<IConsumer>(x => consumerInstance1.Object);
+        services.AddScoped<IConsumer>(x => consumerInstance2.Object);
+        services.AddScoped<IConsumer>(x => consumerInstance3.Object);
+
+        var provider = services.BuildServiceProvider();
         var publisher = provider.GetRequiredService<IRedisStreamPublisher>();
 
         var backgroundService = provider.GetService<RedisStreamBackgroundReceiver>();
         await backgroundService.StartAsync(CancellationToken.None);
-        await Task.Delay(100);
+        await Task.Delay(3000);
         await publisher.PublishAsync(new TestEvent("World"));
-        await Task.Delay(400);
+        await Task.Delay(500);
         await backgroundService.StopAsync(CancellationToken.None);
 
-        var moc1 = Mock.Get(consumerInstance1);
-        var moc2 = Mock.Get(consumerInstance2);
-        var moc3 = Mock.Get(consumerInstance3);
-
-        moc1.Verify(x => x.ConsumeAsync(new TestEvent("World")), Times.Once);
-        moc2.Verify(x => x.ConsumeAsync(new TestEvent("World")), Times.Once);
-        moc3.Verify(x => x.ConsumeAsync(new TestEvent("World")), Times.Once);
+        consumerInstance1.Verify(x => x.ConsumeAsync(new TestEvent("World")), Times.Once);
+        consumerInstance2.Verify(x => x.ConsumeAsync(new TestEvent("World")), Times.Once);
+        consumerInstance3.Verify(x => x.ConsumeAsync(new TestEvent("World")), Times.Once);
     }
-
-
 }

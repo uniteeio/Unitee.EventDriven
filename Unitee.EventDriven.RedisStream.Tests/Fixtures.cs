@@ -18,9 +18,7 @@ public class Fixtures: IDisposable
         Services.AddSingleton<IConnectionMultiplexer>(redis);
         Services.AddScoped<IRedisStreamPublisher, RedisStreamPublisher>();
 
-        Services.AddScoped(provider => new RedisStreamMessagesProcessor("Test", provider,
-                    provider.GetRequiredService<IConnectionMultiplexer>(),
-                    provider.GetRequiredService<ILogger<RedisStreamMessagesProcessor>>()));
+        Services.AddScoped(provider => new RedisStreamMessagesProcessor("Test", provider));
 
         Services.AddSingleton<RedisStreamBackgroundReceiver>(x => new RedisStreamBackgroundReceiver(x, "Test"));
     }

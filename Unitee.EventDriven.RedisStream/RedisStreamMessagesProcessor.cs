@@ -12,17 +12,19 @@ namespace Unitee.RedisStream;
 
 public class RedisStreamMessagesProcessor
 {
-    private readonly IServiceProvider _services;
+    private readonly IServiceScopeFactory _scopeFactory;
     private readonly IConnectionMultiplexer _redis;
+    private readonly IServiceProvider _services;
     private readonly ILogger<RedisStreamMessagesProcessor> _logger;
     private readonly string _serviceName;
 
-    public RedisStreamMessagesProcessor(string serviceName, IServiceProvider services, IConnectionMultiplexer redis, ILogger<RedisStreamMessagesProcessor> logger)
+    public RedisStreamMessagesProcessor(string serviceName, IServiceProvider services)
     {
         _serviceName = serviceName;
         _services = services;
-        _redis = redis;
-        _logger = logger;
+        _scopeFactory = services.GetRequiredService<IServiceScopeFactory>();
+        _redis = services.GetRequiredService<IConnectionMultiplexer>();
+        _logger = services.GetRequiredService<ILogger<RedisStreamMessagesProcessor>>();
     }
 
     private async void RegisterConsumer<TMessage>(IRedisStreamConsumer<TMessage> _)
@@ -52,7 +54,8 @@ public class RedisStreamMessagesProcessor
 
     public void RegisterConsumers()
     {
-        var consumers = _services.GetServices<IConsumer>();
+        var scope = _scopeFactory.CreateScope();
+        var consumers = scope.ServiceProvider.GetServices<IConsumer>();
         foreach (var c in consumers)
         {
             RegisterConsumer((dynamic)c);
@@ -73,7 +76,7 @@ public class RedisStreamMessagesProcessor
 
             if (processed.Item1 is not null && processed.Item2 is not null)
             {
-                using var scope = _services.CreateScope();
+                using var scope = _scopeFactory.CreateScope();
                 var consumers = scope.ServiceProvider.GetServices<IConsumer>();
                 var matchedConsumers =
                     consumers.Where(c => MessageHelper.GetSubject(c.GetType().GetInterface("IRedisStreamConsumer`1")?.GenericTypeArguments?[0]) == MessageHelper.GetSubject<TMessage>())
@@ -137,6 +140,8 @@ public class RedisStreamMessagesProcessor
     {
         var db = _redis.GetDatabase();
 
+        using var services = _scopeFactory.CreateScope();
+
         var topMessages = await db.SortedSetRangeByRankWithScoresAsync("SCHEDULED_MESSAGES", start: 0, stop: 0);
 
         if (topMessages is not { Length: 0 })
@@ -184,7 +189,7 @@ public class RedisStreamMessagesProcessor
                         var body = JsonSerializer.Deserialize((JsonElement)concreteBodyType, type);
 
                         // publish the message
-                        var publisher = _services.GetRequiredService<IRedisStreamPublisher>();
+                        var publisher = services.ServiceProvider.GetRequiredService<IRedisStreamPublisher>();
 
                         var task = (Task?)publisher
                             .GetType()
