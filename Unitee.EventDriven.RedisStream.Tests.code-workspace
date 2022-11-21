@@ -1,0 +1,11 @@
+{
+	"folders": [
+		{
+			"path": "Unitee.EventDriven.RedisStream.Tests"
+		},
+		{
+			"path": "Unitee.EventDriven.RedisStream"
+		}
+	],
+	"settings": {}
+}
