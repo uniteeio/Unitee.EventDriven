@@ -8,8 +8,13 @@ public static class MessageHelper
     /// <summary>
     /// Get the subject of a message
     /// </summary>
-    public static string GetSubject(Type t)
+    public static string? GetSubject(Type? t)
     {
+        if (t is null)
+        {
+            return null;
+        }
+
         var maybeSubjectAttribute = (SubjectAttribute?)Attribute.GetCustomAttribute(t, typeof(SubjectAttribute));
 
         var maybeSubject = maybeSubjectAttribute?.Subject;
@@ -26,7 +31,7 @@ public static class MessageHelper
     /// <summary>
     /// Get the subject of a message
     /// </summary>
-    public static string GetSubject<T>()
+    public static string? GetSubject<T>()
     {
         return GetSubject(typeof(T));
     }

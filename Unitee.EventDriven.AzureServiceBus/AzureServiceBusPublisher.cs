@@ -141,4 +141,9 @@ public class AzureServiceBusPublisher : IAzureServiceBusPublisher
 
         return body;
     }
+
+    public Task<Result> PublishAsync<TMessage>(TMessage message, string subject)
+    {
+        throw new NotImplementedException();
+    }
 }

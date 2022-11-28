@@ -5,121 +5,17 @@ using Microsoft.Extensions.Logging;
 using Unitee.EventDriven.Abstraction;
 using Unitee.EventDriven.Helpers;
 using StackExchange.Redis;
-using Unitee.EventDriven.RedisStream;
 using Unitee.EventDriven.RedisStream.Models;
 using Unitee.EventDriven.Attributes;
-using Unitee.RedisStream;
 
 namespace Unitee.EventDriven.RedisStream;
 
 public class RedisStreamBackgroundReceiver : BackgroundService
 {
-    private readonly ILogger<RedisStreamBackgroundReceiver> _logger;
-    private readonly string _serviceName;
-    private readonly IConnectionMultiplexer _redis;
     private readonly IServiceProvider _services;
-
-    public RedisStreamBackgroundReceiver(IServiceProvider services, string serviceName)
+    public RedisStreamBackgroundReceiver(IServiceProvider services)
     {
         _services = services;
-        _logger = services.GetRequiredService<ILogger<RedisStreamBackgroundReceiver>>();
-        _serviceName = serviceName;
-        _redis = services.GetRequiredService<IConnectionMultiplexer>();
-    }
-
-    private static (string?, object?) ParseStreamEntry<TMessage>(StreamEntry entry)
-    {
-        var body = entry["Body"];
-
-        if (body.IsNull)
-        {
-            return (null, null);
-        }
-
-#pragma warning disable CS8604
-        return (entry.Id, JsonSerializer.Deserialize<TMessage>(body));
-#pragma warning restore CS8604
-    }
-
-#pragma warning disable CA1822
-    private async Task<bool> TryConsume<TMessage>(IRedisStreamConsumer<TMessage> consumer, TMessage message)
-    {
-        _logger.LogDebug("Consuming message {} with subject: {}", message, MessageHelper.GetSubject<TMessage>());
-        await consumer.ConsumeAsync(message);
-        return true;
-    }
-#pragma warning restore CA1822
-
-    private async Task ProcessStreamEntries<TMessage>(IEnumerable<StreamEntry> entries)
-    {
-        var db = _redis.GetDatabase();
-        var subject = MessageHelper.GetSubject<TMessage>();
-
-        foreach (var entry in entries)
-        {
-            var processed = ParseStreamEntry<TMessage>(entry);
-
-            if (processed.Item1 is not null && processed.Item2 is not null)
-            {
-                using var scope = _services.CreateScope();
-                var consumers = scope.ServiceProvider.GetServices<IConsumer>();
-                var matchedConsumers =
-                    consumers.Where(c => MessageHelper.GetSubject(c.GetType().GetInterface("IRedisStreamConsumer`1")?.GenericTypeArguments?[0]) == MessageHelper.GetSubject<TMessage>())
-                    .ToList();
-
-                foreach (var consumer in matchedConsumers)
-                {
-                    try
-                    {
-                        await TryConsume<TMessage>((dynamic)consumer, (TMessage)processed.Item2);
-                        await db.StreamAcknowledgeAsync(subject, _serviceName, processed.Item1);
-                    }
-                    catch (Exception e)
-                    {
-                        // throwing stop the background service
-                        _logger.LogError(e, "Error while processing message");
-                    }
-                }
-            }
-        }
-    }
-
-    private async Task<StreamEntry[]> Read(string subject)
-    {
-        var db = _redis.GetDatabase();
-        try
-        {
-            return await db.StreamReadGroupAsync(subject, _serviceName, "Default", ">");
-        }
-        catch (RedisException e) when (e.Message.StartsWith("NOGROUP"))
-        {
-            await db.StreamCreateConsumerGroupAsync(subject, _serviceName, StreamPosition.NewMessages);
-            return await Read(subject);
-        }
-    }
-
-    private async void Register<TMessage>(IRedisStreamConsumer<TMessage> _)
-    {
-        var db = _redis.GetDatabase();
-        var subject = MessageHelper.GetSubject<TMessage>();
-
-        try
-        {
-            await db.StreamCreateConsumerGroupAsync(subject, _serviceName, StreamPosition.NewMessages);
-        }
-        catch (RedisServerException e) when (e.Message.StartsWith("BUSYGROUP"))
-        { }
-
-        var oldMessages = await Read(subject);
-
-        await ProcessStreamEntries<TMessage>(oldMessages);
-
-        _redis.GetSubscriber().Subscribe(subject, async (channel, value) =>
-        {
-            var db = _redis.GetDatabase();
-            var streamEntries = await Read(subject);
-            await ProcessStreamEntries<TMessage>(streamEntries);
-        });
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -128,100 +24,13 @@ public class RedisStreamBackgroundReceiver : BackgroundService
 
         using var scope = _services.CreateScope();
 
-        var consumers = scope.ServiceProvider.GetServices<IConsumer>();
-        foreach (var c in consumers)
-        {
-            Register((dynamic)c);
-        }
+        var processor = scope.ServiceProvider.GetRequiredService<RedisStreamMessagesProcessor>();
+        processor.RegisterConsumers();
 
         // Scheduled messages
         while (!stoppingToken.IsCancellationRequested)
         {
-            var db = _redis.GetDatabase();
-
-            var topMessages = await db.SortedSetRangeByRankWithScoresAsync("SCHEDULED_MESSAGES", start: 0, stop: 0);
-
-            if (topMessages is not { Length: 0 })
-            {
-                var topMessage = topMessages[0];
-                var now = DateTimeOffset.Now.ToUnixTimeMilliseconds();
-                if (now >= topMessage.Score && topMessage.Element.HasValue is true && db.LockQuery($"LOCK:{topMessage.Element}").HasValue is false)
-                {
-                    try
-                    {
-                        await db.LockTakeAsync($"LOCK:{topMessage.Element}", _serviceName, TimeSpan.FromSeconds(30));
-
-                        var distance = TimeSpan.FromMilliseconds(now - topMessage.Score);
-                        _logger.LogInformation("Processing delayed message with delayed time {Distance}", distance);
-
-#pragma warning disable CS8604
-                        var message = JsonSerializer.Deserialize<RedisStreamScheduledMessageType<object>>(topMessage.Element);
-#pragma warning restore CS8604
-
-                        if (message?.Subject is not null)
-                        {
-                            // find the right event POCO class in the assembly in order to publish it
-                            var typesWithMyAttribute =
-                                from a in AppDomain.CurrentDomain.GetAssemblies()
-                                from t in a.GetTypes()
-                                let attributes = t.GetCustomAttributes(typeof(SubjectAttribute), true)
-                                where attributes != null && attributes.Length > 0
-                                where attributes.Cast<SubjectAttribute>().FirstOrDefault()?.Subject == message.Subject
-                                select new { Type = t };
-
-                            var type = typesWithMyAttribute.SingleOrDefault()?.Type;
-
-                            if (type is null)
-                            {
-                                throw new CannotHandleScheduledMessageException("A scheduled message was found but a class with the subject was not found in the assembly. So the message has been ignored.");
-                            }
-
-                            JsonElement? concreteBodyType = message.Body as JsonElement?;
-                            if (concreteBodyType is null)
-                            {
-                                throw new CannotHandleScheduledMessageException("Body cannot be null. As a workaround, you can use an empty object instead.");
-                            }
-
-                            // build the message
-                            var body = JsonSerializer.Deserialize((JsonElement)concreteBodyType, type);
-
-                            // publish the message
-                            var publisher = scope.ServiceProvider.GetRequiredService<IRedisStreamPublisher>();
-
-                            var task = (Task?)publisher
-                                .GetType()
-                                .GetMethods()
-                                .Where(x => x.Name == "PublishAsync" && x.GetParameters().Length == 1)
-                                .Single()
-                                .MakeGenericMethod(type)
-                                .Invoke(publisher, new[] { body });
-
-                            if (task is not null)
-                                await task;
-                            else
-                            {
-                                throw new CannotHandleScheduledMessageException("We didn't find any suitable method to publish the message.");
-                            }
-                        }
-                    }
-                    catch (CannotHandleScheduledMessageException e)
-                    {
-                        _logger.LogWarning("{}", e.Message);
-                    }
-                    catch (Exception e)
-                    {
-                        _logger.LogError(e, "{}", e.Message);
-                    }
-                    finally
-                    {
-                        await db.SortedSetRemoveAsync("SCHEDULED_MESSAGES", topMessage.Element);
-                        await db.LockReleaseAsync($"LOCK:{topMessage.Element}", _serviceName);
-                    }
-
-                    continue;
-                }
-            }
-
+            await processor.ReadAndPublishScheduledMessagesAsync();
             await Task.Delay(3000, stoppingToken);
         }
     }

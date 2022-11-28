@@ -16,7 +16,7 @@ public class AzureServiceBusMessageContext : IAzureServiceBusMessageContext
         _message = originalMessage;
     }
 
-    public async Task<Result> AnswerAsync<TMessage>(TMessage message)
+    public async Task<Result> ReplyAsync<TMessage>(TMessage message)
     {
         return await _publisher.PublishAsync(message, new Models.MessageOptions
         {
