@@ -12,13 +12,11 @@ public interface IRedisStreamConsumerWithContext<TMessage> : IConsumerWithContex
 
 public class RedisStreamMessageContext : IRedisStreamMessageContext
 {
-    private readonly IRedisStreamPublisher _publisher;
     private readonly string _replyTo;
     private readonly IConnectionMultiplexer _redis;
 
-    public RedisStreamMessageContext(IRedisStreamPublisher publisher, IConnectionMultiplexer redis, string replyTo)
+    public RedisStreamMessageContext(IRedisStreamPublisher _, IConnectionMultiplexer redis, string replyTo)
     {
-        _publisher = publisher;
         _replyTo = replyTo;
         _redis = redis;
     }

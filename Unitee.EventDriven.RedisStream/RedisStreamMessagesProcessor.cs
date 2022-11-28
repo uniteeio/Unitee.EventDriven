@@ -30,10 +30,13 @@ public class RedisStreamMessagesProcessor
         _msgContextFactory = services.GetRequiredService<RedisStreamMessageContextFactory>();
     }
 
-    private async void RegisterConsumer<TMessage>(IRedisStreamConsumer<TMessage> _)
+    private async Task InnerRegisterConsumer<TMessage>()
     {
         var db = _redis.GetDatabase();
         var subject = MessageHelper.GetSubject<TMessage>();
+
+        if (subject is null)
+            throw new ApplicationException("found a consumer without a subject.");
 
         try
         {
@@ -52,33 +55,17 @@ public class RedisStreamMessagesProcessor
             var streamEntries = await Read(subject);
             await ProcessStreamEntries<TMessage>(streamEntries);
         });
+    }
+
+    private async void RegisterConsumer<TMessage>(IRedisStreamConsumer<TMessage> _)
+    {
+        await InnerRegisterConsumer<TMessage>();
     }
 
     private async void RegisterConsumerWithContext<TMessage>(IRedisStreamConsumerWithContext<TMessage> _)
     {
-        var db = _redis.GetDatabase();
-        var subject = MessageHelper.GetSubject<TMessage>();
-
-        try
-        {
-            await db.StreamCreateConsumerGroupAsync(subject, _serviceName, StreamPosition.NewMessages);
-        }
-        catch (RedisServerException e) when (e.Message.StartsWith("BUSYGROUP"))
-        { }
-
-        var oldMessages = await Read(subject);
-
-        await ProcessStreamEntries<TMessage>(oldMessages);
-
-        _redis.GetSubscriber().Subscribe(subject, async (channel, value) =>
-        {
-            var db = _redis.GetDatabase();
-            var streamEntries = await Read(subject);
-            await ProcessStreamEntries<TMessage>(streamEntries);
-        });
+        await InnerRegisterConsumer<TMessage>();
     }
-
-
 
     public void RegisterConsumers()
     {
@@ -89,12 +76,14 @@ public class RedisStreamMessagesProcessor
             try
             {
                 RegisterConsumer((dynamic)c);
-            } catch { }
+            }
+            catch { }
 
             try
             {
                 RegisterConsumerWithContext((dynamic)c);
-            } catch {}
+            }
+            catch { }
         }
     }
 

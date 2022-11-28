@@ -1,8 +1,7 @@
-
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
 using StackExchange.Redis;
-using Unitee.EventDriven.RedisStream;
+
+namespace Unitee.EventDriven.RedisStream.Tests;
 
 public class RedisFixtures : IDisposable
 {
@@ -16,5 +15,6 @@ public class RedisFixtures : IDisposable
 
     public void Dispose()
     {
+        GC.SuppressFinalize(this);
     }
 }

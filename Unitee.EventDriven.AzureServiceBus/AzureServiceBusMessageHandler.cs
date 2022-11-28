@@ -42,7 +42,7 @@ public class AzureServiceBusMessageHandler : IAzureServiceBusMessageHandler
     }
 
 
-    public async Task<bool> TryInvoke<TMessage>(IAzureServiceBusConsumer<TMessage> consumer, ServiceBusReceivedMessage originalMessage)
+    public static async Task<bool> TryInvoke<TMessage>(IAzureServiceBusConsumer<TMessage> consumer, ServiceBusReceivedMessage originalMessage)
     {
         var subject = MessageHelper.GetSubject<TMessage>();
         if (subject == originalMessage.Subject)
