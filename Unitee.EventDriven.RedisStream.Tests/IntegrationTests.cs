@@ -4,6 +4,7 @@ using Moq;
 using StackExchange.Redis;
 using Unitee.EventDriven.Abstraction;
 using Unitee.EventDriven.Attributes;
+using Unitee.EventDriven.Models;
 
 namespace Unitee.EventDriven.RedisStream.Tests;
 
@@ -26,7 +27,6 @@ public class BaseTests : IClassFixture<RedisFixtures>
         _services.AddScoped<IRedisStreamPublisher, RedisStreamPublisher>();
         _services.AddScoped<RedisStreamMessageContextFactory>();
         _services.AddScoped(provider => new RedisStreamMessagesProcessor(name, provider));
-
         _services.AddSingleton<RedisStreamBackgroundReceiver>(x => new RedisStreamBackgroundReceiver(x));
         return _services;
     }
@@ -135,5 +135,57 @@ public class BaseTests : IClassFixture<RedisFixtures>
         db.KeyDelete("TEST_EVENT_4");
 
         Assert.Equal("Received", resp);
+    }
+
+    [Fact]
+    public async Task Scheduled_ShouldConsumeAMessageSentInThePast()
+    {
+        var db = _redis.GetDatabase();
+        var services = GetServices(Guid.NewGuid().ToString());
+
+        var consumerInstance1 = new Mock<IRedisStreamConsumer<TestEvent5>>();
+        services.AddScoped<IConsumer>(x => consumerInstance1.Object);
+
+        var provider = services.BuildServiceProvider();
+        var publisher = provider.GetRequiredService<IRedisStreamPublisher>();
+
+        var backgroundService = provider.GetService<RedisStreamBackgroundReceiver>();
+        await backgroundService.StartAsync(CancellationToken.None);
+        await Task.Delay(500);
+        await publisher.PublishAsync<TestEvent5>(new TestEvent5("World"), new MessageOptions()
+        {
+            ScheduledEnqueueTime = DateTime.UtcNow.AddSeconds(-5)
+        });
+        await Task.Delay(3500);
+        await backgroundService.StopAsync(CancellationToken.None);
+        db.KeyDelete("TEST_EVENT_5");
+        consumerInstance1.Verify(x => x.ConsumeAsync(new TestEvent5("World")), Times.Once);
+    }
+
+    [Fact]
+    public async Task Concurrency_ScheduledMessageShouldNotBeSentMultipleTime()
+    {
+        var db = _redis.GetDatabase();
+        var services = GetServices(Guid.NewGuid().ToString());
+
+        var consumerInstance1 = new Mock<IRedisStreamConsumer<TestEvent6>>();
+        services.AddScoped<IConsumer>(x => consumerInstance1.Object);
+
+        services.AddSingleton<RedisStreamBackgroundReceiver>(x => new RedisStreamBackgroundReceiver(x));
+
+        var provider = services.BuildServiceProvider();
+        var publisher = provider.GetRequiredService<IRedisStreamPublisher>();
+
+        var backgroundService = provider.GetService<RedisStreamBackgroundReceiver>();
+        await backgroundService.StartAsync(CancellationToken.None);
+        await Task.Delay(500);
+        await publisher.PublishAsync(new TestEvent6("World"), new MessageOptions()
+        {
+            ScheduledEnqueueTime = DateTime.UtcNow.AddSeconds(-5)
+        });
+        await Task.Delay(3500);
+        await backgroundService.StopAsync(CancellationToken.None);
+        db.KeyDelete("TEST_EVENT_6");
+        consumerInstance1.Verify(x => x.ConsumeAsync(new TestEvent6("World")), Times.Once);
     }
 }
