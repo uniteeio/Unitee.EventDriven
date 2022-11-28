@@ -1,8 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
-using StackExchange.Redis;
 using Unitee.EventDriven.RedisStream;
-using Unitee.RedisStream;
 
 namespace Unitee.EventDriven.DependencyInjection;
 
@@ -12,7 +9,9 @@ public static class ServicesConfiguration
     {
         services.AddScoped(provider => new RedisStreamMessagesProcessor(serviceName, provider));
 
+        services.AddScoped<RedisStreamMessageContextFactory>();
+
         services.AddHostedService(ctx =>
-            new RedisStreamBackgroundReceiver(ctx, serviceName));
+            new RedisStreamBackgroundReceiver(ctx));
     }
 }

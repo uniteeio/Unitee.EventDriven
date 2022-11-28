@@ -5,10 +5,11 @@ using StackExchange.Redis;
 using Unitee.EventDriven.Abstraction;
 using Unitee.EventDriven.Attributes;
 using Unitee.EventDriven.Helpers;
-using Unitee.EventDriven.RedisStream;
 using Unitee.EventDriven.RedisStream.Models;
 
-namespace Unitee.RedisStream;
+namespace Unitee.EventDriven.RedisStream;
+
+public record ParsedStreamEntry(string? Id, object? Body, string? ReplyTo);
 
 public class RedisStreamMessagesProcessor
 {
@@ -16,6 +17,7 @@ public class RedisStreamMessagesProcessor
     private readonly IConnectionMultiplexer _redis;
     private readonly IServiceProvider _services;
     private readonly ILogger<RedisStreamMessagesProcessor> _logger;
+    private readonly RedisStreamMessageContextFactory _msgContextFactory;
     private readonly string _serviceName;
 
     public RedisStreamMessagesProcessor(string serviceName, IServiceProvider services)
@@ -25,6 +27,7 @@ public class RedisStreamMessagesProcessor
         _scopeFactory = services.GetRequiredService<IServiceScopeFactory>();
         _redis = services.GetRequiredService<IConnectionMultiplexer>();
         _logger = services.GetRequiredService<ILogger<RedisStreamMessagesProcessor>>();
+        _msgContextFactory = services.GetRequiredService<RedisStreamMessageContextFactory>();
     }
 
     private async void RegisterConsumer<TMessage>(IRedisStreamConsumer<TMessage> _)
@@ -51,6 +54,31 @@ public class RedisStreamMessagesProcessor
         });
     }
 
+    private async void RegisterConsumerWithContext<TMessage>(IRedisStreamConsumerWithContext<TMessage> _)
+    {
+        var db = _redis.GetDatabase();
+        var subject = MessageHelper.GetSubject<TMessage>();
+
+        try
+        {
+            await db.StreamCreateConsumerGroupAsync(subject, _serviceName, StreamPosition.NewMessages);
+        }
+        catch (RedisServerException e) when (e.Message.StartsWith("BUSYGROUP"))
+        { }
+
+        var oldMessages = await Read(subject);
+
+        await ProcessStreamEntries<TMessage>(oldMessages);
+
+        _redis.GetSubscriber().Subscribe(subject, async (channel, value) =>
+        {
+            var db = _redis.GetDatabase();
+            var streamEntries = await Read(subject);
+            await ProcessStreamEntries<TMessage>(streamEntries);
+        });
+    }
+
+
 
     public void RegisterConsumers()
     {
@@ -58,7 +86,15 @@ public class RedisStreamMessagesProcessor
         var consumers = scope.ServiceProvider.GetServices<IConsumer>();
         foreach (var c in consumers)
         {
-            RegisterConsumer((dynamic)c);
+            try
+            {
+                RegisterConsumer((dynamic)c);
+            } catch { }
+
+            try
+            {
+                RegisterConsumerWithContext((dynamic)c);
+            } catch {}
         }
     }
 
@@ -74,20 +110,40 @@ public class RedisStreamMessagesProcessor
         {
             var processed = ParseStreamEntry<TMessage>(entry);
 
-            if (processed.Item1 is not null && processed.Item2 is not null)
+            if (processed.Id is not null && processed.Body is not null)
             {
                 using var scope = _scopeFactory.CreateScope();
                 var consumers = scope.ServiceProvider.GetServices<IConsumer>();
+
                 var matchedConsumers =
-                    consumers.Where(c => MessageHelper.GetSubject(c.GetType().GetInterface("IRedisStreamConsumer`1")?.GenericTypeArguments?[0]) == MessageHelper.GetSubject<TMessage>())
+                    consumers.Where(c => MessageHelper.GetSubject(c.GetType()?.GetInterface("IRedisStreamConsumer`1")?.GenericTypeArguments?[0]) == MessageHelper.GetSubject<TMessage>())
                     .ToList();
 
                 foreach (var consumer in matchedConsumers)
                 {
                     try
                     {
-                        await TryConsume<TMessage>((dynamic)consumer, (TMessage)processed.Item2);
-                        await db.StreamAcknowledgeAsync(subject, _serviceName, processed.Item1);
+                        await TryConsume<TMessage>((dynamic)consumer, (TMessage)processed.Body);
+                        await db.StreamAcknowledgeAsync(subject, _serviceName, processed.Id);
+                    }
+                    catch (Exception e)
+                    {
+                        // throwing stop the background service
+                        _logger.LogError(e, "Error while processing message");
+                    }
+                }
+
+                var matchedConsumersWithContext =  consumers
+                    .Where(c => MessageHelper.GetSubject(
+                        c.GetType()?.GetInterface("IRedisStreamConsumerWithContext`1")?.GenericTypeArguments?[0]) == MessageHelper.GetSubject<TMessage>())
+                    .ToList();
+
+                foreach (var consumer in matchedConsumersWithContext)
+                {
+                    try
+                    {
+                        await TryConsumeWithContext<TMessage>((dynamic)consumer, (TMessage)processed.Body, processed.ReplyTo);
+                        await db.StreamAcknowledgeAsync(subject, _serviceName, processed.Id);
                     }
                     catch (Exception e)
                     {
@@ -113,17 +169,18 @@ public class RedisStreamMessagesProcessor
         }
     }
 
-    private static (string?, object?) ParseStreamEntry<TMessage>(StreamEntry entry)
+    private static ParsedStreamEntry ParseStreamEntry<TMessage>(StreamEntry entry)
     {
         var body = entry["Body"];
+        var replyTo = entry["ReplyTo"];
 
         if (body.IsNull)
         {
-            return (null, null);
+            return new ParsedStreamEntry(entry.Id, null, replyTo);
         }
 
 #pragma warning disable CS8604
-        return (entry.Id, JsonSerializer.Deserialize<TMessage>(body));
+        return new ParsedStreamEntry(entry.Id, JsonSerializer.Deserialize<TMessage>(body), replyTo);
 #pragma warning restore CS8604
     }
 
@@ -132,6 +189,14 @@ public class RedisStreamMessagesProcessor
     {
         _logger.LogDebug("Consuming message {} with subject: {}", message, MessageHelper.GetSubject<TMessage>());
         await consumer.ConsumeAsync(message);
+        return true;
+    }
+
+    private async Task<bool> TryConsumeWithContext<TMessage>(IRedisStreamConsumerWithContext<TMessage> consumer, TMessage message, string replyTo)
+    {
+        _logger.LogDebug("Consuming message with context {} with subject: {}", message, MessageHelper.GetSubject<TMessage>());
+        var ctx = _msgContextFactory.Create(replyTo);
+        await consumer.ConsumeAsync(message, ctx);
         return true;
     }
 #pragma warning restore CA1822
@@ -186,7 +251,7 @@ public class RedisStreamMessagesProcessor
                         }
 
                         // build the message
-                        var body = JsonSerializer.Deserialize((JsonElement)concreteBodyType, type);
+                        var body = ((JsonElement)concreteBodyType).Deserialize(type);
 
                         // publish the message
                         var publisher = services.ServiceProvider.GetRequiredService<IRedisStreamPublisher>();

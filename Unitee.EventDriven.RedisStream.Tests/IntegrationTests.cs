@@ -4,23 +4,15 @@ using Moq;
 using StackExchange.Redis;
 using Unitee.EventDriven.Abstraction;
 using Unitee.EventDriven.Attributes;
-using Unitee.RedisStream;
 
 namespace Unitee.EventDriven.RedisStream.Tests;
 
-[Subject("TEST_EVENT_1")]
-public record TestEvent1(string ATestString);
 
-[Subject("TEST_EVENT_2")]
-public record TestEvent2(string ATestString);
-
-[Subject("TEST_EVENT_3")]
-public record TestEvent3(string ATestString);
-
-public class BaseTests : IClassFixture<RedisFixctures>
+public class BaseTests : IClassFixture<RedisFixtures>
 {
     private readonly IConnectionMultiplexer _redis;
-    public BaseTests(RedisFixctures redis)
+
+    public BaseTests(RedisFixtures redis)
     {
         _redis = redis.Redis;
     }
@@ -30,11 +22,12 @@ public class BaseTests : IClassFixture<RedisFixctures>
         var _services = new ServiceCollection();
 
         _services.AddLogging();
-        _services.AddSingleton<IConnectionMultiplexer>(_redis);
+        _services.AddSingleton(_redis);
         _services.AddScoped<IRedisStreamPublisher, RedisStreamPublisher>();
+        _services.AddScoped<RedisStreamMessageContextFactory>();
         _services.AddScoped(provider => new RedisStreamMessagesProcessor(name, provider));
 
-        _services.AddSingleton<RedisStreamBackgroundReceiver>(x => new RedisStreamBackgroundReceiver(x, name));
+        _services.AddSingleton<RedisStreamBackgroundReceiver>(x => new RedisStreamBackgroundReceiver(x));
         return _services;
     }
 
@@ -49,6 +42,7 @@ public class BaseTests : IClassFixture<RedisFixctures>
         catch (RedisException)
         {
         }
+
         var services = GetServices("Test1");
         var consumerInstance = new Mock<IRedisStreamConsumer<TestEvent1>>();
         services.AddScoped<IConsumer>(x => consumerInstance.Object);
@@ -117,5 +111,29 @@ public class BaseTests : IClassFixture<RedisFixctures>
         consumerInstance1.Verify(x => x.ConsumeAsync(new TestEvent3("World")), Times.Once);
         consumerInstance2.Verify(x => x.ConsumeAsync(new TestEvent3("World")), Times.Once);
         consumerInstance3.Verify(x => x.ConsumeAsync(new TestEvent3("World")), Times.Once);
+    }
+
+    [Fact]
+    public async Task ResponseRequest_ShouldReply()
+    {
+        var db = _redis.GetDatabase();
+        var services = GetServices(Guid.NewGuid().ToString());
+
+        services.AddScoped<IConsumer, ResponseRequestFixtureConsumer>();
+        var provider = services.BuildServiceProvider();
+        var publisher = provider.GetRequiredService<IRedisStreamPublisher>();
+
+        var backgroundService = provider.GetService<RedisStreamBackgroundReceiver>();
+        await backgroundService.StartAsync(CancellationToken.None);
+        await Task.Delay(500);
+        var resp = await publisher.RequestResponseAsync<TestEvent4, string>(new TestEvent4("World"), new()
+        {
+            SessionId = Guid.NewGuid().ToString()
+        });
+        await Task.Delay(500);
+        await backgroundService.StopAsync(CancellationToken.None);
+        db.KeyDelete("TEST_EVENT_4");
+
+        Assert.Equal("Received", resp);
     }
 }

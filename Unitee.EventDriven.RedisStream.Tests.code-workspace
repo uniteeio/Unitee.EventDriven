@@ -5,6 +5,9 @@
 		},
 		{
 			"path": "Unitee.EventDriven.RedisStream"
+		},
+		{
+			"path": "Unitee.EventDriven.AzureServiceBus"
 		}
 	],
 	"settings": {}
