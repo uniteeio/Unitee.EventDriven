@@ -1,0 +1,40 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Unitee.EventDriven.Abstraction", "Unitee.EventDriven.Abstraction\Unitee.EventDriven.Abstraction.csproj", "{671F1E62-F2CE-4C96-BBAB-AFA2F723BE76}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Unitee.EventDriven.RedisStream", "Unitee.EventDriven.RedisStream\Unitee.EventDriven.RedisStream.csproj", "{5146C2A4-72E2-4CE3-9F86-AE685BC27421}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Unitee.EventDriven.RedisStream.Tests", "Unitee.EventDriven.RedisStream.Tests\Unitee.EventDriven.RedisStream.Tests.csproj", "{3D4EAD4E-42AF-4711-874E-1460FEBC38D6}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Unitee.EventDriven.AzureServiceBus", "Unitee.EventDriven.AzureServiceBus\Unitee.EventDriven.AzureServiceBus.csproj", "{22B3A76F-09CA-4DD5-8F73-48E1EE79266C}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{671F1E62-F2CE-4C96-BBAB-AFA2F723BE76}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{671F1E62-F2CE-4C96-BBAB-AFA2F723BE76}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{671F1E62-F2CE-4C96-BBAB-AFA2F723BE76}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{671F1E62-F2CE-4C96-BBAB-AFA2F723BE76}.Release|Any CPU.Build.0 = Release|Any CPU
+		{5146C2A4-72E2-4CE3-9F86-AE685BC27421}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{5146C2A4-72E2-4CE3-9F86-AE685BC27421}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{5146C2A4-72E2-4CE3-9F86-AE685BC27421}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{5146C2A4-72E2-4CE3-9F86-AE685BC27421}.Release|Any CPU.Build.0 = Release|Any CPU
+		{3D4EAD4E-42AF-4711-874E-1460FEBC38D6}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{3D4EAD4E-42AF-4711-874E-1460FEBC38D6}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{3D4EAD4E-42AF-4711-874E-1460FEBC38D6}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{3D4EAD4E-42AF-4711-874E-1460FEBC38D6}.Release|Any CPU.Build.0 = Release|Any CPU
+		{22B3A76F-09CA-4DD5-8F73-48E1EE79266C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{22B3A76F-09CA-4DD5-8F73-48E1EE79266C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{22B3A76F-09CA-4DD5-8F73-48E1EE79266C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{22B3A76F-09CA-4DD5-8F73-48E1EE79266C}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal
