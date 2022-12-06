@@ -19,8 +19,9 @@ public class RedisStreamMessagesProcessor
     private readonly ILogger<RedisStreamMessagesProcessor> _logger;
     private readonly RedisStreamMessageContextFactory _msgContextFactory;
     private readonly string _serviceName;
+    private readonly string _instanceName;
 
-    public RedisStreamMessagesProcessor(string serviceName, IServiceProvider services)
+    public RedisStreamMessagesProcessor(string serviceName, string instanceName, IServiceProvider services)
     {
         _serviceName = serviceName;
         _services = services;
@@ -28,6 +29,7 @@ public class RedisStreamMessagesProcessor
         _redis = services.GetRequiredService<IConnectionMultiplexer>();
         _logger = services.GetRequiredService<ILogger<RedisStreamMessagesProcessor>>();
         _msgContextFactory = services.GetRequiredService<RedisStreamMessageContextFactory>();
+        _instanceName = instanceName;
     }
 
     private async Task InnerRegisterConsumer<TMessage>()
@@ -149,7 +151,7 @@ public class RedisStreamMessagesProcessor
         var db = _redis.GetDatabase();
         try
         {
-            return await db.StreamReadGroupAsync(subject, _serviceName, "Default", ">");
+            return await db.StreamReadGroupAsync(subject, _serviceName, _instanceName, ">");
         }
         catch (RedisException e) when (e.Message.StartsWith("NOGROUP"))
         {
@@ -168,12 +170,9 @@ public class RedisStreamMessagesProcessor
             return new ParsedStreamEntry(entry.Id, null, replyTo);
         }
 
-#pragma warning disable CS8604
-        return new ParsedStreamEntry(entry.Id, JsonSerializer.Deserialize<TMessage>(body), replyTo);
-#pragma warning restore CS8604
+        return new ParsedStreamEntry(entry.Id, JsonSerializer.Deserialize<TMessage>(body!), replyTo);
     }
 
-#pragma warning disable CA1822
     private async Task<bool> TryConsume<TMessage>(IRedisStreamConsumer<TMessage> consumer, TMessage message)
     {
         _logger.LogDebug("Consuming message {} with subject: {}", message, MessageHelper.GetSubject<TMessage>());
@@ -188,7 +187,6 @@ public class RedisStreamMessagesProcessor
         await consumer.ConsumeAsync(message, ctx);
         return true;
     }
-#pragma warning restore CA1822
 
     public async Task<int> ReadAndPublishScheduledMessagesAsync()
     {
@@ -196,24 +194,32 @@ public class RedisStreamMessagesProcessor
 
         using var services = _scopeFactory.CreateScope();
 
+        var lockTaken = db.LockTake("SCHEDULED_MESSAGES_LOCK", "1", TimeSpan.FromSeconds(10));
+
+        if (!lockTaken)
+        {
+            return 0;
+        }
+
         var topMessages = await db.SortedSetRangeByRankWithScoresAsync("SCHEDULED_MESSAGES", start: 0, stop: 0);
 
         if (topMessages is not { Length: 0 })
         {
             var topMessage = topMessages[0];
             var now = DateTimeOffset.Now.ToUnixTimeMilliseconds();
-            if (now >= topMessage.Score && topMessage.Element.HasValue is true && db.LockQuery($"LOCK:{topMessage.Element}").HasValue is false)
+            if (now >= topMessage.Score && topMessage.Element.HasValue is true)
             {
+                topMessage = (await db.SortedSetPopAsync("SCHEDULED_MESSAGES")).Value;
+
+                // once we have popped the message, we can release the lock
+                await db.LockReleaseAsync("SCHEDULED_MESSAGES_LOCK", "1");
+
                 try
                 {
-                    await db.LockTakeAsync($"LOCK:{topMessage.Element}", _serviceName, TimeSpan.FromSeconds(30));
-
                     var distance = TimeSpan.FromMilliseconds(now - topMessage.Score);
                     _logger.LogInformation("Processing delayed message with delayed time {Distance}", distance);
 
-#pragma warning disable CS8604
-                    var message = JsonSerializer.Deserialize<RedisStreamScheduledMessageType<object>>(topMessage.Element);
-#pragma warning restore CS8604
+                    var message = JsonSerializer.Deserialize<RedisStreamScheduledMessageType<object>>(topMessage!.Element!);
 
                     if (message?.Subject is not null)
                     {
@@ -269,15 +275,13 @@ public class RedisStreamMessagesProcessor
                 {
                     _logger.LogError(e, "{}", e.Message);
                 }
-                finally
-                {
-                    await db.SortedSetRemoveAsync("SCHEDULED_MESSAGES", topMessage.Element);
-                    await db.LockReleaseAsync($"LOCK:{topMessage.Element}", _serviceName);
-                }
 
                 return 1;
             }
         }
+
+        // release lock before returning (maybe it already has been released)
+        await db.LockReleaseAsync("SCHEDULED_MESSAGES_LOCK", "1");
         return 0;
     }
 }

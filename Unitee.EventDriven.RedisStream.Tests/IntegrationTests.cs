@@ -26,7 +26,7 @@ public class BaseTests : IClassFixture<RedisFixtures>
         _services.AddSingleton(_redis);
         _services.AddScoped<IRedisStreamPublisher, RedisStreamPublisher>();
         _services.AddScoped<RedisStreamMessageContextFactory>();
-        _services.AddScoped(provider => new RedisStreamMessagesProcessor(name, provider));
+        _services.AddScoped(provider => new RedisStreamMessagesProcessor(name, "Default", provider));
         _services.AddSingleton<RedisStreamBackgroundReceiver>(x => new RedisStreamBackgroundReceiver(x));
         return _services;
     }

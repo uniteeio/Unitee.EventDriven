@@ -5,9 +5,9 @@ namespace Unitee.EventDriven.DependencyInjection;
 
 public static class ServicesConfiguration
 {
-    public static void AddRedisStreamBackgroundReceiver(this IServiceCollection services, string serviceName)
+    public static void AddRedisStreamBackgroundReceiver(this IServiceCollection services, string serviceName, string instanceName = "Default")
     {
-        services.AddScoped(provider => new RedisStreamMessagesProcessor(serviceName, provider));
+        services.AddScoped(provider => new RedisStreamMessagesProcessor(serviceName, instanceName, provider));
 
         services.AddScoped<RedisStreamMessageContextFactory>();
 
