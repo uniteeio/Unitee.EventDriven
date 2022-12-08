@@ -27,10 +27,23 @@ public class RedisStreamBackgroundReceiver : BackgroundService
         var processor = scope.ServiceProvider.GetRequiredService<RedisStreamMessagesProcessor>();
         processor.RegisterConsumers();
 
+        var errorCount = 0;
+
         // Scheduled messages
         while (!stoppingToken.IsCancellationRequested)
         {
-            await processor.ReadAndPublishScheduledMessagesAsync();
+            try
+            {
+                await processor.ReadAndPublishScheduledMessagesAsync();
+                errorCount = 0;
+            } catch (RedisException)
+            {
+                errorCount++;
+                if (errorCount > 10)
+                {
+                    throw;
+                }
+            }
             await Task.Delay(3000, stoppingToken);
         }
     }

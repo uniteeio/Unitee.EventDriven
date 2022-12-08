@@ -269,11 +269,11 @@ public class RedisStreamMessagesProcessor
                 }
                 catch (CannotHandleScheduledMessageException e)
                 {
-                    _logger.LogWarning("{}", e.Message);
+                    _logger.LogWarning("{message}", e.Message);
                 }
                 catch (Exception e)
                 {
-                    _logger.LogError(e, "{}", e.Message);
+                    _logger.LogError(e, "{message}", e.Message);
                 }
 
                 return 1;
