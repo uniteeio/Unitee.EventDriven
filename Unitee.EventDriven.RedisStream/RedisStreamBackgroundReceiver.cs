@@ -36,7 +36,7 @@ public class RedisStreamBackgroundReceiver : BackgroundService
             {
                 await processor.ReadAndPublishScheduledMessagesAsync();
                 errorCount = 0;
-            } catch (RedisException)
+            } catch (Exception e) when (e is RedisException || e is RedisTimeoutException)
             {
                 errorCount++;
                 if (errorCount > 10)
