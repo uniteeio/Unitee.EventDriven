@@ -14,4 +14,6 @@ public record TestEvent4(string ATestString);
 public record TestEvent5(string ATestString);
 [Subject("TEST_EVENT_6")]
 public record TestEvent6(string ATestString);
+[Subject("TEST_EVENT_7")]
+public record TestEvent7(string ATestString);
 

@@ -1,12 +1,6 @@
-using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
-using Unitee.EventDriven.Abstraction;
-using Unitee.EventDriven.Helpers;
 using StackExchange.Redis;
-using Unitee.EventDriven.RedisStream.Models;
-using Unitee.EventDriven.Attributes;
 
 namespace Unitee.EventDriven.RedisStream;
 

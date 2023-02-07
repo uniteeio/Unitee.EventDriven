@@ -49,13 +49,13 @@ public class RedisStreamMessagesProcessor
 
         var oldMessages = await Read(subject);
 
-        await ProcessStreamEntries<TMessage>(oldMessages);
+        ProcessStreamEntries<TMessage>(oldMessages);
 
         _redis.GetSubscriber().Subscribe(subject, async (channel, value) =>
         {
             var db = _redis.GetDatabase();
             var streamEntries = await Read(subject);
-            await ProcessStreamEntries<TMessage>(streamEntries);
+            ProcessStreamEntries<TMessage>(streamEntries);
         });
     }
 
@@ -89,60 +89,60 @@ public class RedisStreamMessagesProcessor
         }
     }
 
-
-#pragma warning restore CA1822
-
-    private async Task ProcessStreamEntries<TMessage>(IEnumerable<StreamEntry> entries)
+    private void ProcessStreamEntries<TMessage>(IEnumerable<StreamEntry> entries)
     {
         var db = _redis.GetDatabase();
         var subject = MessageHelper.GetSubject<TMessage>();
 
         foreach (var entry in entries)
         {
-            var processed = ParseStreamEntry<TMessage>(entry);
-
-            if (processed.Id is not null && processed.Body is not null)
+            _ = Task.Run(async () =>
             {
-                using var scope = _scopeFactory.CreateScope();
-                var consumers = scope.ServiceProvider.GetServices<IConsumer>();
+                var processed = ParseStreamEntry<TMessage>(entry);
 
-                var matchedConsumers =
-                    consumers.Where(c => MessageHelper.GetSubject(c.GetType()?.GetInterface("IRedisStreamConsumer`1")?.GenericTypeArguments?[0]) == MessageHelper.GetSubject<TMessage>())
-                    .ToList();
-
-                foreach (var consumer in matchedConsumers)
+                if (processed.Id is not null && processed.Body is not null)
                 {
-                    try
+                    using var scope = _scopeFactory.CreateScope();
+                    var consumers = scope.ServiceProvider.GetServices<IConsumer>();
+
+                    var matchedConsumers =
+                        consumers.Where(c => MessageHelper.GetSubject(c.GetType()?.GetInterface("IRedisStreamConsumer`1")?.GenericTypeArguments?[0]) == MessageHelper.GetSubject<TMessage>())
+                        .ToList();
+
+                    foreach (var consumer in matchedConsumers)
                     {
-                        await TryConsume<TMessage>((dynamic)consumer, (TMessage)processed.Body);
-                        await db.StreamAcknowledgeAsync(subject, _serviceName, processed.Id);
+                        try
+                        {
+                            await TryConsume<TMessage>((dynamic)consumer, (TMessage)processed.Body);
+                            await db.StreamAcknowledgeAsync(subject, _serviceName, processed.Id);
+                        }
+                        catch (Exception e)
+                        {
+                            // throwing stop the background service
+                            _logger.LogError(e, "Error while processing message");
+                        }
                     }
-                    catch (Exception e)
+
+                    var matchedConsumersWithContext =  consumers
+                        .Where(c => MessageHelper.GetSubject(
+                            c.GetType()?.GetInterface("IRedisStreamConsumerWithContext`1")?.GenericTypeArguments?[0]) == MessageHelper.GetSubject<TMessage>())
+                        .ToList();
+
+                    foreach (var consumer in matchedConsumersWithContext)
                     {
-                        // throwing stop the background service
-                        _logger.LogError(e, "Error while processing message");
+                        try
+                        {
+                            await TryConsumeWithContext<TMessage>((dynamic)consumer, (TMessage)processed.Body, processed.ReplyTo);
+                            await db.StreamAcknowledgeAsync(subject, _serviceName, processed.Id);
+                        }
+                        catch (Exception e)
+                        {
+                            // throwing stop the background service
+                            _logger.LogError(e, "Error while processing message");
+                        }
                     }
                 }
-
-                var matchedConsumersWithContext =  consumers
-                    .Where(c => MessageHelper.GetSubject(
-                        c.GetType()?.GetInterface("IRedisStreamConsumerWithContext`1")?.GenericTypeArguments?[0]) == MessageHelper.GetSubject<TMessage>())
-                    .ToList();
-
-                foreach (var consumer in matchedConsumersWithContext)
-                {
-                    try
-                    {
-                        await TryConsumeWithContext<TMessage>((dynamic)consumer, (TMessage)processed.Body, processed.ReplyTo);
-                        await db.StreamAcknowledgeAsync(subject, _serviceName, processed.Id);
-                    }
-                    catch (Exception e)
-                    {
-                        // throwing stop the background service
-                        _logger.LogError(e, "Error while processing message");
-                    }
-                }
-            }
+            });
         }
     }
 

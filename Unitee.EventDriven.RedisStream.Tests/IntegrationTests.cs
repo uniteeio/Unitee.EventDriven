@@ -27,7 +27,7 @@ public class BaseTests : IClassFixture<RedisFixtures>
         _services.AddScoped<IRedisStreamPublisher, RedisStreamPublisher>();
         _services.AddScoped<RedisStreamMessageContextFactory>();
         _services.AddScoped(provider => new RedisStreamMessagesProcessor(name, "Default", provider));
-        _services.AddSingleton<RedisStreamBackgroundReceiver>(x => new RedisStreamBackgroundReceiver(x));
+        _services.AddSingleton(x => new RedisStreamBackgroundReceiver(x));
         return _services;
     }
 
@@ -152,7 +152,7 @@ public class BaseTests : IClassFixture<RedisFixtures>
         var backgroundService = provider.GetService<RedisStreamBackgroundReceiver>();
         await backgroundService.StartAsync(CancellationToken.None);
         await Task.Delay(500);
-        await publisher.PublishAsync<TestEvent5>(new TestEvent5("World"), new MessageOptions()
+        await publisher.PublishAsync(new TestEvent5("World"), new MessageOptions()
         {
             ScheduledEnqueueTime = DateTime.UtcNow.AddSeconds(-5)
         });
@@ -171,7 +171,7 @@ public class BaseTests : IClassFixture<RedisFixtures>
         var consumerInstance1 = new Mock<IRedisStreamConsumer<TestEvent6>>();
         services.AddScoped<IConsumer>(x => consumerInstance1.Object);
 
-        services.AddSingleton<RedisStreamBackgroundReceiver>(x => new RedisStreamBackgroundReceiver(x));
+        services.AddSingleton(x => new RedisStreamBackgroundReceiver(x));
 
         var provider = services.BuildServiceProvider();
         var publisher = provider.GetRequiredService<IRedisStreamPublisher>();
@@ -187,5 +187,46 @@ public class BaseTests : IClassFixture<RedisFixtures>
         await backgroundService.StopAsync(CancellationToken.None);
         db.KeyDelete("TEST_EVENT_6");
         consumerInstance1.Verify(x => x.ConsumeAsync(new TestEvent6("World")), Times.Once);
+    }
+
+    [Fact]
+    public async Task FireAndForget_OldMessagesShouldNotBlockAtStart()
+    {
+        var db = _redis.GetDatabase();
+
+         try
+        {
+            db.StreamCreateConsumerGroup("TEST_EVENT_7", "DefaultConsumer", StreamPosition.NewMessages);
+        }
+        catch (RedisException)
+        {
+        }
+
+        var services = GetServices("DefaultConsumer");
+
+        var slowConsumerInstance = new Mock<IRedisStreamConsumer<TestEvent7>>();
+
+        slowConsumerInstance.Setup(x => x.ConsumeAsync(new TestEvent7("World")))
+            .Callback(() => Thread.Sleep(1000))
+            .Returns(Task.CompletedTask);
+
+        services.AddScoped<IConsumer>(x => slowConsumerInstance.Object);
+
+        var provider = services.BuildServiceProvider();
+        var publisher = provider.GetRequiredService<IRedisStreamPublisher>();
+        var backgroundService = provider.GetService<RedisStreamBackgroundReceiver>();
+
+        for (int i = 0; i < 50; i++)
+        {
+            await publisher.PublishAsync(new TestEvent7("World"));
+        }
+
+        await backgroundService.StartAsync(CancellationToken.None);
+        await Task.Delay(3000);
+
+        await backgroundService.StopAsync(CancellationToken.None);
+        db.KeyDelete("TEST_EVENT_7");
+
+        slowConsumerInstance.Verify(x => x.ConsumeAsync(new TestEvent7("World")), Times.Exactly(50));
     }
 }
