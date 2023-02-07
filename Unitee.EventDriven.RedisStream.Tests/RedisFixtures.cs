@@ -10,6 +10,8 @@ public class RedisFixtures : IDisposable
 
     public RedisFixtures()
     {
+        ThreadPool.GetMaxThreads(out var workerThreads, out var completionPortThreads);
+        ThreadPool.SetMinThreads(workerThreads, completionPortThreads);
         Redis = ConnectionMultiplexer.Connect("localhost:6379");
     }
 

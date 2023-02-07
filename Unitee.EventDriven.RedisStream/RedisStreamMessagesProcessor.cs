@@ -5,6 +5,7 @@ using StackExchange.Redis;
 using Unitee.EventDriven.Abstraction;
 using Unitee.EventDriven.Attributes;
 using Unitee.EventDriven.Helpers;
+using Unitee.EventDriven.RedisStream.Events;
 using Unitee.EventDriven.RedisStream.Models;
 
 namespace Unitee.EventDriven.RedisStream;
@@ -18,10 +19,12 @@ public class RedisStreamMessagesProcessor
     private readonly IServiceProvider _services;
     private readonly ILogger<RedisStreamMessagesProcessor> _logger;
     private readonly RedisStreamMessageContextFactory _msgContextFactory;
+    private readonly IRedisStreamPublisher _publisher;
     private readonly string _serviceName;
     private readonly string _instanceName;
+    private readonly string _deadLetterQueueName;
 
-    public RedisStreamMessagesProcessor(string serviceName, string instanceName, IServiceProvider services)
+    public RedisStreamMessagesProcessor(string serviceName, string instanceName, string deadLetterQueueName, IServiceProvider services)
     {
         _serviceName = serviceName;
         _services = services;
@@ -29,7 +32,9 @@ public class RedisStreamMessagesProcessor
         _redis = services.GetRequiredService<IConnectionMultiplexer>();
         _logger = services.GetRequiredService<ILogger<RedisStreamMessagesProcessor>>();
         _msgContextFactory = services.GetRequiredService<RedisStreamMessageContextFactory>();
+        _publisher = services.GetRequiredService<IRedisStreamPublisher>();
         _instanceName = instanceName;
+        _deadLetterQueueName = deadLetterQueueName;
     }
 
     private async Task InnerRegisterConsumer<TMessage>()
@@ -118,6 +123,12 @@ public class RedisStreamMessagesProcessor
                         }
                         catch (Exception e)
                         {
+                            // don't push to dead letter queue if the dead letter queue handler has a problem
+                            if (subject != _deadLetterQueueName && subject is not null && _publisher is not null)
+                            {
+                                await _publisher.PublishAsync(new DeadLetterEvent(subject, processed.Body, e.ToString()), _deadLetterQueueName);
+                            }
+
                             // throwing stop the background service
                             _logger.LogError(e, "Error while processing message");
                         }
@@ -137,6 +148,12 @@ public class RedisStreamMessagesProcessor
                         }
                         catch (Exception e)
                         {
+                            // don't push to dead letter queue if the dead letter queue handler has a problem
+                            if (subject != _deadLetterQueueName && subject is not null)
+                            {
+                                await _publisher.PublishAsync(new DeadLetterEvent(subject, processed.Body, e.ToString()), _deadLetterQueueName);
+                            }
+
                             // throwing stop the background service
                             _logger.LogError(e, "Error while processing message");
                         }

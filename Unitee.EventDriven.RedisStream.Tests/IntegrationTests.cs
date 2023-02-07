@@ -5,6 +5,7 @@ using StackExchange.Redis;
 using Unitee.EventDriven.Abstraction;
 using Unitee.EventDriven.Attributes;
 using Unitee.EventDriven.Models;
+using Unitee.EventDriven.RedisStream.Events;
 
 namespace Unitee.EventDriven.RedisStream.Tests;
 
@@ -26,7 +27,7 @@ public class BaseTests : IClassFixture<RedisFixtures>
         _services.AddSingleton(_redis);
         _services.AddScoped<IRedisStreamPublisher, RedisStreamPublisher>();
         _services.AddScoped<RedisStreamMessageContextFactory>();
-        _services.AddScoped(provider => new RedisStreamMessagesProcessor(name, "Default", provider));
+        _services.AddScoped(provider => new RedisStreamMessagesProcessor(name, "Default", "DEAD_LETTER", provider));
         _services.AddSingleton(x => new RedisStreamBackgroundReceiver(x));
         return _services;
     }
@@ -54,7 +55,7 @@ public class BaseTests : IClassFixture<RedisFixtures>
 
         var backgroundService = provider.GetService<RedisStreamBackgroundReceiver>();
         await backgroundService.StartAsync(CancellationToken.None);
-        await Task.Delay(500);
+        await Task.Delay(100);
         await backgroundService.StopAsync(CancellationToken.None);
         db.KeyDelete("TEST_EVENT_1");
 
@@ -74,9 +75,9 @@ public class BaseTests : IClassFixture<RedisFixtures>
 
         var backgroundService = provider.GetService<RedisStreamBackgroundReceiver>();
         await backgroundService.StartAsync(CancellationToken.None);
-        await Task.Delay(500);
+        await Task.Delay(100);
         await publisher.PublishAsync(new TestEvent2("World"));
-        await Task.Delay(500);
+        await Task.Delay(100);
         await backgroundService.StopAsync(CancellationToken.None);
         db.KeyDelete("TEST_EVENT_2");
 
@@ -102,9 +103,9 @@ public class BaseTests : IClassFixture<RedisFixtures>
 
         var backgroundService = provider.GetService<RedisStreamBackgroundReceiver>();
         await backgroundService.StartAsync(CancellationToken.None);
-        await Task.Delay(500);
+        await Task.Delay(100);
         await publisher.PublishAsync(new TestEvent3("World"));
-        await Task.Delay(500);
+        await Task.Delay(100);
         await backgroundService.StopAsync(CancellationToken.None);
         db.KeyDelete("TEST_EVENT_3");
 
@@ -125,12 +126,12 @@ public class BaseTests : IClassFixture<RedisFixtures>
 
         var backgroundService = provider.GetService<RedisStreamBackgroundReceiver>();
         await backgroundService.StartAsync(CancellationToken.None);
-        await Task.Delay(500);
+        await Task.Delay(100);
         var resp = await publisher.RequestResponseAsync<TestEvent4, string>(new TestEvent4("World"), new()
         {
             SessionId = Guid.NewGuid().ToString()
         });
-        await Task.Delay(500);
+        await Task.Delay(100);
         await backgroundService.StopAsync(CancellationToken.None);
         db.KeyDelete("TEST_EVENT_4");
 
@@ -151,7 +152,7 @@ public class BaseTests : IClassFixture<RedisFixtures>
 
         var backgroundService = provider.GetService<RedisStreamBackgroundReceiver>();
         await backgroundService.StartAsync(CancellationToken.None);
-        await Task.Delay(500);
+        await Task.Delay(100);
         await publisher.PublishAsync(new TestEvent5("World"), new MessageOptions()
         {
             ScheduledEnqueueTime = DateTime.UtcNow.AddSeconds(-5)
@@ -178,7 +179,7 @@ public class BaseTests : IClassFixture<RedisFixtures>
 
         var backgroundService = provider.GetService<RedisStreamBackgroundReceiver>();
         await backgroundService.StartAsync(CancellationToken.None);
-        await Task.Delay(500);
+        await Task.Delay(100);
         await publisher.PublishAsync(new TestEvent6("World"), new MessageOptions()
         {
             ScheduledEnqueueTime = DateTime.UtcNow.AddSeconds(-5)
@@ -207,7 +208,10 @@ public class BaseTests : IClassFixture<RedisFixtures>
         var slowConsumerInstance = new Mock<IRedisStreamConsumer<TestEvent7>>();
 
         slowConsumerInstance.Setup(x => x.ConsumeAsync(new TestEvent7("World")))
-            .Callback(() => Thread.Sleep(1000))
+            .Callback(async () =>
+            {
+                await Task.Delay(1000);
+            })
             .Returns(Task.CompletedTask);
 
         services.AddScoped<IConsumer>(x => slowConsumerInstance.Object);
@@ -228,5 +232,39 @@ public class BaseTests : IClassFixture<RedisFixtures>
         db.KeyDelete("TEST_EVENT_7");
 
         slowConsumerInstance.Verify(x => x.ConsumeAsync(new TestEvent7("World")), Times.Exactly(50));
+    }
+
+    [Fact]
+    public async Task DeadLetter_MessageNotConsumedShoudBePushToDeadLetter()
+    {
+        var db = _redis.GetDatabase();
+
+        var services = GetServices(Guid.NewGuid().ToString());
+
+        var throwingConsumer = new Mock<IRedisStreamConsumer<TestEvent8>>();
+
+        throwingConsumer.Setup(x => x.ConsumeAsync(new TestEvent8("World")))
+            .Throws(new Exception("Hello World"));
+
+        var deadLetterConsumer = new Mock<IRedisStreamConsumer<DeadLetter>>();
+
+        services.AddScoped<IConsumer>(x => throwingConsumer.Object);
+        services.AddScoped<IConsumer>(x => deadLetterConsumer.Object);
+
+        var provider = services.BuildServiceProvider();
+        var publisher = provider.GetRequiredService<IRedisStreamPublisher>();
+        var backgroundService = provider.GetService<RedisStreamBackgroundReceiver>();
+        await backgroundService.StartAsync(CancellationToken.None);
+
+        await Task.Delay(100);
+        await publisher.PublishAsync(new TestEvent8("World"));
+        await Task.Delay(100);
+
+        await backgroundService.StopAsync(CancellationToken.None);
+
+        db.KeyDelete("TEST_EVENT_8");
+        db.KeyDelete("DEAD_LETTER");
+
+        deadLetterConsumer.Verify(x => x.ConsumeAsync(It.IsAny<DeadLetter>()), Times.Once);
     }
 }

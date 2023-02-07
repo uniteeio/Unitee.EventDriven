@@ -33,10 +33,17 @@ public class RedisStreamPublisher : IRedisStreamPublisher
     public async Task<RedisValue> PublishAsync<TMessage>(TMessage message)
     {
         var subject = MessageHelper.GetSubject<TMessage>();
+
         if (subject is null)
         {
             throw new ApplicationException("Cannot publish message without subject");
         }
+
+        return await PublishAsync(message, subject);
+    }
+
+    public async Task<RedisValue> PublishAsync<TMessage>(TMessage message, string subject)
+    {
         var db = _redis.GetDatabase();
         var res = await db.StreamAddAsync(subject, "Body", JsonSerializer.Serialize(message), maxLength: 100);
         await db.PublishAsync(subject, "");
@@ -74,13 +81,6 @@ public class RedisStreamPublisher : IRedisStreamPublisher
         return json;
     }
 
-    public async Task<RedisValue> PublishAsync<TMessage>(TMessage message, string subject)
-    {
-        var db = _redis.GetDatabase();
-        var res = await db.StreamAddAsync(subject, "Body", JsonSerializer.Serialize(message), maxLength: 100);
-        await db.PublishAsync(subject, "");
-        return res;
-    }
 
     public async Task<U> RequestResponseAsync<T, U>(T message, MessageOptions options, ReplyOptions? replyOptions = null)
     {

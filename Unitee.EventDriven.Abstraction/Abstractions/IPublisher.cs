@@ -12,6 +12,7 @@ public interface IPublisher<TResult, TSequence>
     /// Publie un message sur le bus avec des options.
     /// </summary>
     public Task<TResult> PublishAsync<TMessage>(TMessage message, MessageOptions options);
+    public Task<TResult> PublishAsync<TMessage>(TMessage message, string subject);
 
     /// <summary>
     /// Publie un message et attend une réponse

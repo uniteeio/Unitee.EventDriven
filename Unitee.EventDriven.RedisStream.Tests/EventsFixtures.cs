@@ -16,4 +16,8 @@ public record TestEvent5(string ATestString);
 public record TestEvent6(string ATestString);
 [Subject("TEST_EVENT_7")]
 public record TestEvent7(string ATestString);
+[Subject("TEST_EVENT_8")]
+public record TestEvent8(string ATestString);
+[Subject("DEAD_LETTER")]
+public record DeadLetter(string OriginalSubject, object OriginalPayload, string Reason);
 
