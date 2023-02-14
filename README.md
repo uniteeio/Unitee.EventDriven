@@ -163,3 +163,8 @@ public class UserRegisteredConsumer : IRedisStreamConsumeWithContext<UserRegiste
 If a consumer throw, then the message and the exception are published to a special queue named: dead letter queue.
 The default name is `DEAD_LETTER` but you can configured it by providing a second parameter to `AddRedisStreamBackgroundReceiver`. You can easily imagine a script able to pull the messages from the dead letter queue and send them again.
 
+
+### Horizontal scaling
+
+Inside a consumer group, you can have multiple consumers. Each consumer group receives a single copy of the message.
+You can name the consumer with the third parameter of `AddRedisStreamBackgroundReceiver`. You should use an unique name PER INSTANCE. 
