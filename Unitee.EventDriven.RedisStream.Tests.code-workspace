@@ -5,12 +5,6 @@
 		},
 		{
 			"path": "Unitee.EventDriven.RedisStream"
-		},
-		{
-			"path": "Unitee.EventDriven.AzureServiceBus"
-		},
-		{
-			"path": "Unitee.EventDriven.Abstraction"
 		}
 	],
 	"settings": {}
