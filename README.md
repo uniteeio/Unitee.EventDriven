@@ -16,7 +16,7 @@ dotnet add package Unitee.EventDriven.RedisStream
 ```
 
 For now, we mainly focus on Redis as an event store because:
-  - Easy to deploy or find free (cheap clusters)
+  - Easy to deploy or find free (cheap) clusters
   - Easy to visualize with a gui tool
   - A tool you may already familiar with (for caching for example)
   - Builtin system for pub/sub and storing streams
@@ -31,7 +31,7 @@ For now, we mainly focus on Redis as an event store because:
 
 # How to use
 
-1) Use the package `StackExchang.Redis` to make the IConnectionMultiplexer in the DI container.
+1) Use the package `StackExchang.Redis` to make the `IConnectionMultiplexer` in the DI container.
 
 ```csharp
 var multiplexer = ConnectionMultiplexer.Connect(builder.Configuration["Redis:ConnectionString"]);
@@ -51,9 +51,13 @@ If the subject is ommited, the name of the object is used instead (here, `UserRe
 
 ## Publish an event
 
+### Setup
+
 ```csahrp
 builder.Services.AddScoped<IRedisStreamPublisher, RedisStreamPublisher>();
 ```
+
+# Publish
 
 Use the `IRedisStreamPublisher` to actually publish the event: 
 
