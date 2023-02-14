@@ -57,7 +57,7 @@ If the subject is ommited, the name of the object is used instead (here, `UserRe
 builder.Services.AddScoped<IRedisStreamPublisher, RedisStreamPublisher>();
 ```
 
-# Publish
+### Publish
 
 Use the `IRedisStreamPublisher` to actually publish the event: 
 
