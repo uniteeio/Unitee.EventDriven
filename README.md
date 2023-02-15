@@ -168,3 +168,10 @@ The default name is `DEAD_LETTER` but you can configured it by providing a secon
 
 Inside a consumer group, you can have multiple consumers. Each consumer group receives a single copy of the message.
 You can name the consumer with the third parameter of `AddRedisStreamBackgroundReceiver`. You should use an unique name PER INSTANCE. 
+
+### Thread safety
+
+When multiple consumer are subscribed to the same event, or when, there is multiple event pending, they are executed concurrently.
+This mean:
+    - You should not rely of the order they are inserted
+    - The services you use should be thread safe (example: database connection)
