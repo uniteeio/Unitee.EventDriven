@@ -267,4 +267,49 @@ public class BaseTests : IClassFixture<RedisFixtures>
 
         deadLetterConsumer.Verify(x => x.ConsumeAsync(It.IsAny<DeadLetter>()), Times.Once);
     }
+
+    [Fact]
+    public async Task Concurrency_TwoConsumerShouoldBeExecutedConcurrently()
+    {
+        var db = _redis.GetDatabase();
+        var services = GetServices(Guid.NewGuid().ToString());
+
+        var slowConsumerInstance1 = new Mock<IRedisStreamConsumer<TestEvent9>>();
+        var slowConsumerInstance2 = new Mock<IRedisStreamConsumer<TestEvent9>>();
+
+
+        var consumer1 = slowConsumerInstance1.Setup(x => x.ConsumeAsync(new TestEvent9("World")))
+            .Callback(async () =>
+            {
+                await Task.Delay(1000);
+            })
+            .Returns(Task.CompletedTask);
+
+        var consumer2 = slowConsumerInstance1.Setup(x => x.ConsumeAsync(new TestEvent9("World")))
+            .Callback(async () =>
+            {
+                await Task.Delay(1000);
+            })
+            .Returns(Task.CompletedTask);
+
+
+        services.AddScoped<IConsumer>(x => slowConsumerInstance1.Object);
+        services.AddScoped<IConsumer>(x => slowConsumerInstance2.Object);
+
+        var provider = services.BuildServiceProvider();
+        var publisher = provider.GetRequiredService<IRedisStreamPublisher>();
+        var backgroundService = provider.GetService<RedisStreamBackgroundReceiver>();
+        await backgroundService.StartAsync(CancellationToken.None);
+
+        await Task.Delay(100);
+        await publisher.PublishAsync(new TestEvent9("World"));
+        await Task.Delay(1000 + 100);
+
+        await backgroundService.StopAsync(CancellationToken.None);
+
+        slowConsumerInstance1.Verify(x => x.ConsumeAsync(It.IsAny<TestEvent9>()), Times.Once);
+        slowConsumerInstance2.Verify(x => x.ConsumeAsync(It.IsAny<TestEvent9>()), Times.Once);
+
+        db.KeyDelete("TEST_EVENT_9");
+    }
 }

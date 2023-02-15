@@ -114,50 +114,65 @@ public class RedisStreamMessagesProcessor
                         consumers.Where(c => MessageHelper.GetSubject(c.GetType()?.GetInterface("IRedisStreamConsumer`1")?.GenericTypeArguments?[0]) == MessageHelper.GetSubject<TMessage>())
                         .ToList();
 
+                    var taskList = new List<Task>();
+
                     foreach (var consumer in matchedConsumers)
                     {
-                        try
+                        var task = Task.Run(async () =>
                         {
-                            await TryConsume<TMessage>((dynamic)consumer, (TMessage)processed.Body);
-                            await db.StreamAcknowledgeAsync(subject, _serviceName, processed.Id);
-                        }
-                        catch (Exception e)
-                        {
-                            // don't push to dead letter queue if the dead letter queue handler has a problem
-                            if (subject != _deadLetterQueueName && subject is not null && _publisher is not null)
+                            try
                             {
-                                await _publisher.PublishAsync(new DeadLetterEvent(subject, processed.Body, e.ToString()), _deadLetterQueueName);
+                                await TryConsume<TMessage>((dynamic)consumer, (TMessage)processed.Body);
+                                await db.StreamAcknowledgeAsync(subject, _serviceName, processed.Id);
                             }
+                            catch (Exception e)
+                            {
+                                // don't push to dead letter queue if the dead letter queue handler has a problem
+                                if (subject != _deadLetterQueueName && subject is not null && _publisher is not null)
+                                {
+                                    await _publisher.PublishAsync(new DeadLetterEvent(subject, processed.Body, e.ToString()), _deadLetterQueueName);
+                                }
 
-                            // throwing stop the background service
-                            _logger.LogError(e, "Error while processing message");
-                        }
+                                // throwing stop the background service
+                                _logger.LogError(e, "Error while processing message");
+                            }
+                        });
+
+                        taskList.Add(task);
                     }
 
-                    var matchedConsumersWithContext =  consumers
+                    var matchedConsumersWithContext = consumers
                         .Where(c => MessageHelper.GetSubject(
                             c.GetType()?.GetInterface("IRedisStreamConsumerWithContext`1")?.GenericTypeArguments?[0]) == MessageHelper.GetSubject<TMessage>())
                         .ToList();
 
                     foreach (var consumer in matchedConsumersWithContext)
                     {
-                        try
+                        var task = Task.Run(async () =>
                         {
-                            await TryConsumeWithContext<TMessage>((dynamic)consumer, (TMessage)processed.Body, processed.ReplyTo);
-                            await db.StreamAcknowledgeAsync(subject, _serviceName, processed.Id);
-                        }
-                        catch (Exception e)
-                        {
-                            // don't push to dead letter queue if the dead letter queue handler has a problem
-                            if (subject != _deadLetterQueueName && subject is not null)
+                            try
                             {
-                                await _publisher.PublishAsync(new DeadLetterEvent(subject, processed.Body, e.ToString()), _deadLetterQueueName);
+                                await TryConsumeWithContext<TMessage>((dynamic)consumer, (TMessage)processed.Body, processed.ReplyTo);
+                                await db.StreamAcknowledgeAsync(subject, _serviceName, processed.Id);
                             }
+                            catch (Exception e)
+                            {
+                                // don't push to dead letter queue if the dead letter queue handler has a problem
+                                if (subject != _deadLetterQueueName && subject is not null)
+                                {
+                                    await _publisher.PublishAsync(new DeadLetterEvent(subject, processed.Body, e.ToString()), _deadLetterQueueName);
+                                }
 
-                            // throwing stop the background service
-                            _logger.LogError(e, "Error while processing message");
-                        }
+                                // throwing stop the background service
+                                _logger.LogError(e, "Error while processing message");
+                            }
+                        });
+
+                        taskList.Add(task);
                     }
+
+                    // not sure we need that
+                    await Task.WhenAll(taskList);
                 }
             });
         }
