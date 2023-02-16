@@ -76,8 +76,7 @@ public class RedisStreamMessagesProcessor
 
     public void RegisterConsumers()
     {
-        var scope = _scopeFactory.CreateScope();
-        var consumers = scope.ServiceProvider.GetServices<IConsumer>();
+        var consumers = _services.GetServices<IConsumer>();
         foreach (var c in consumers)
         {
             try
@@ -107,8 +106,7 @@ public class RedisStreamMessagesProcessor
 
                 if (processed.Id is not null && processed.Body is not null)
                 {
-                    using var scope = _scopeFactory.CreateScope();
-                    var consumers = scope.ServiceProvider.GetServices<IConsumer>();
+                    var consumers = _services.GetServices<IConsumer>();
 
                     var matchedConsumers =
                         consumers.Where(c => MessageHelper.GetSubject(c.GetType()?.GetInterface("IRedisStreamConsumer`1")?.GenericTypeArguments?[0]) == MessageHelper.GetSubject<TMessage>())

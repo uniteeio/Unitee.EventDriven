@@ -141,8 +141,10 @@ public class UserRegisteredConsumer : IRedisStreamConsumer<UserRegistered>
 Then, register your consumer:
 
 ```csharp
-services.AddScoped<IConsumer, UserRegisteredConsumer>();
+services.AddTransient<IConsumer, UserRegisteredConsumer>();
 ```
+
+All consumers should be added using `AddTransient`. So, they all have their own scope since they are executed concurrently.
 
 If you want to your consumer to be able to reply, then, implement `IRedisStreamConsumerWithContext<TRequest, TResponse>` instead.
 
@@ -169,9 +171,7 @@ The default name is `DEAD_LETTER` but you can configured it by providing a secon
 Inside a consumer group, you can have multiple consumers. Each consumer group receives a single copy of the message.
 You can name the consumer with the third parameter of `AddRedisStreamBackgroundReceiver`. You should use an unique name PER INSTANCE. 
 
-### Thread safety
+### Thread safety and concurrency
 
 When multiple consumer are subscribed to the same event, or when, there is multiple event pending, they are executed concurrently.
-This mean:
-    - You should not rely of the order they are inserted
-    - The services you use should be thread safe (example: database connection)
+This mean that you should not rely of the order they are inserted.

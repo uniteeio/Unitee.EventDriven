@@ -1,11 +1,8 @@
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
 using Moq;
 using StackExchange.Redis;
 using Unitee.EventDriven.Abstraction;
-using Unitee.EventDriven.Attributes;
 using Unitee.EventDriven.Models;
-using Unitee.EventDriven.RedisStream.Events;
 
 namespace Unitee.EventDriven.RedisStream.Tests;
 
@@ -46,7 +43,7 @@ public class BaseTests : IClassFixture<RedisFixtures>
 
         var services = GetServices("Test1");
         var consumerInstance = new Mock<IRedisStreamConsumer<TestEvent1>>();
-        services.AddScoped<IConsumer>(x => consumerInstance.Object);
+        services.AddTransient<IConsumer>(x => consumerInstance.Object);
 
         var provider = services.BuildServiceProvider();
         var publisher = provider.GetRequiredService<IRedisStreamPublisher>();
@@ -68,7 +65,7 @@ public class BaseTests : IClassFixture<RedisFixtures>
         var db = _redis.GetDatabase();
         var services = GetServices("Test1");
         var consumerInstance = new Mock<IRedisStreamConsumer<TestEvent2>>();
-        services.AddScoped<IConsumer>(x => consumerInstance.Object);
+        services.AddTransient<IConsumer>(x => consumerInstance.Object);
 
         var provider = services.BuildServiceProvider();
         var publisher = provider.GetRequiredService<IRedisStreamPublisher>();
@@ -94,9 +91,9 @@ public class BaseTests : IClassFixture<RedisFixtures>
         var consumerInstance2 = new Mock<IRedisStreamConsumer<TestEvent3>>();
         var consumerInstance3 = new Mock<IRedisStreamConsumer<TestEvent3>>();
 
-        services.AddScoped<IConsumer>(x => consumerInstance1.Object);
-        services.AddScoped<IConsumer>(x => consumerInstance2.Object);
-        services.AddScoped<IConsumer>(x => consumerInstance3.Object);
+        services.AddTransient<IConsumer>(x => consumerInstance1.Object);
+        services.AddTransient<IConsumer>(x => consumerInstance2.Object);
+        services.AddTransient<IConsumer>(x => consumerInstance3.Object);
 
         var provider = services.BuildServiceProvider();
         var publisher = provider.GetRequiredService<IRedisStreamPublisher>();
@@ -120,7 +117,7 @@ public class BaseTests : IClassFixture<RedisFixtures>
         var db = _redis.GetDatabase();
         var services = GetServices(Guid.NewGuid().ToString());
 
-        services.AddScoped<IConsumer, ResponseRequestFixtureConsumer>();
+        services.AddTransient<IConsumer, ResponseRequestFixtureConsumer>();
         var provider = services.BuildServiceProvider();
         var publisher = provider.GetRequiredService<IRedisStreamPublisher>();
 
@@ -145,7 +142,7 @@ public class BaseTests : IClassFixture<RedisFixtures>
         var services = GetServices(Guid.NewGuid().ToString());
 
         var consumerInstance1 = new Mock<IRedisStreamConsumer<TestEvent5>>();
-        services.AddScoped<IConsumer>(x => consumerInstance1.Object);
+        services.AddTransient<IConsumer>(x => consumerInstance1.Object);
 
         var provider = services.BuildServiceProvider();
         var publisher = provider.GetRequiredService<IRedisStreamPublisher>();
@@ -170,7 +167,7 @@ public class BaseTests : IClassFixture<RedisFixtures>
         var services = GetServices(Guid.NewGuid().ToString());
 
         var consumerInstance1 = new Mock<IRedisStreamConsumer<TestEvent6>>();
-        services.AddScoped<IConsumer>(x => consumerInstance1.Object);
+        services.AddTransient<IConsumer>(x => consumerInstance1.Object);
 
         services.AddSingleton(x => new RedisStreamBackgroundReceiver(x));
 
@@ -214,7 +211,7 @@ public class BaseTests : IClassFixture<RedisFixtures>
             })
             .Returns(Task.CompletedTask);
 
-        services.AddScoped<IConsumer>(x => slowConsumerInstance.Object);
+        services.AddTransient<IConsumer>(x => slowConsumerInstance.Object);
 
         var provider = services.BuildServiceProvider();
         var publisher = provider.GetRequiredService<IRedisStreamPublisher>();
@@ -248,8 +245,8 @@ public class BaseTests : IClassFixture<RedisFixtures>
 
         var deadLetterConsumer = new Mock<IRedisStreamConsumer<DeadLetter>>();
 
-        services.AddScoped<IConsumer>(x => throwingConsumer.Object);
-        services.AddScoped<IConsumer>(x => deadLetterConsumer.Object);
+        services.AddTransient<IConsumer>(x => throwingConsumer.Object);
+        services.AddTransient<IConsumer>(x => deadLetterConsumer.Object);
 
         var provider = services.BuildServiceProvider();
         var publisher = provider.GetRequiredService<IRedisStreamPublisher>();
@@ -293,8 +290,8 @@ public class BaseTests : IClassFixture<RedisFixtures>
             .Returns(Task.CompletedTask);
 
 
-        services.AddScoped<IConsumer>(x => slowConsumerInstance1.Object);
-        services.AddScoped<IConsumer>(x => slowConsumerInstance2.Object);
+        services.AddTransient<IConsumer>(x => slowConsumerInstance1.Object);
+        services.AddTransient<IConsumer>(x => slowConsumerInstance2.Object);
 
         var provider = services.BuildServiceProvider();
         var publisher = provider.GetRequiredService<IRedisStreamPublisher>();
