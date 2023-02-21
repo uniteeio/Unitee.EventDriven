@@ -218,6 +218,68 @@ public class RedisStreamMessagesProcessor
         return true;
     }
 
+    private IEnumerable<RedisKey> GetKeys(string pattern)
+    {
+        foreach (var endpoint in _redis.GetEndPoints())
+        {
+            foreach (var key in _redis.GetServer(endpoint).Keys(pattern: pattern))
+            {
+                yield return key;
+            }
+        }
+    }
+
+    public async Task ExecuteCrons()
+    {
+        var db = _redis.GetDatabase();
+
+        var lockTaken = db.LockTake("CRON_LOCK", "1", TimeSpan.FromSeconds(10));
+
+        if (!lockTaken)
+        {
+            return;
+        }
+
+        var cron = GetKeys("Cron:Schedule:*");
+
+
+        foreach (var key in cron)
+        {
+            var values = db.HashGetAll(key);
+
+            var expression = values[0];
+            var queueName = values[1];
+
+            var cronName = key.ToString().Split(":").Last();
+            var parsed = Cronos.CronExpression.Parse(expression.Value);
+            var previous = parsed.GetOccurrences(DateTime.UtcNow.AddMinutes(-10), DateTime.UtcNow).Reverse().FirstOrDefault();
+
+            if (previous == default)
+            {
+                continue;
+            }
+
+            var alreadyExecutedLastElement = db.StreamRange($"Cron:ExecutionHistory:{cronName}", "-", "+", 1, Order.Descending);
+
+            if (alreadyExecutedLastElement.Length is not 0)
+            {
+                var lastExecutedTimestamp = alreadyExecutedLastElement.First().Values[0].Value.ToString();
+                var toExecuteTimeStamp = previous.ToString("yyyyMMddHHmmssffff");
+                if (lastExecutedTimestamp.ToString() == toExecuteTimeStamp)
+                {
+                    continue;
+                }
+            }
+
+            // Execute
+            db.StreamAdd($"Cron:ExecutionHistory:{cronName}", new NameValueEntry[] { new("ExecutedAt", previous.ToString("yyyyMMddHHmmssffff")) }, maxLength: 100);
+            db.StreamAdd(queueName.Value.ToString(), "Body", "{}", maxLength: 100);
+            db.Publish(queueName.Value.ToString(), "1");
+        }
+
+        await db.LockReleaseAsync("CRON_LOCK", "1");
+    }
+
     public async Task<int> ReadAndPublishScheduledMessagesAsync()
     {
         var db = _redis.GetDatabase();

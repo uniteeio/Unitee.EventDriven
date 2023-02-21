@@ -1,3 +1,4 @@
+using Cronos;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using StackExchange.Redis;
@@ -28,6 +29,7 @@ public class RedisStreamBackgroundReceiver : BackgroundService
         {
             try
             {
+                await processor.ExecuteCrons();
                 await processor.ReadAndPublishScheduledMessagesAsync();
                 errorCount = 0;
             } catch (Exception e) when (e is RedisException || e is RedisTimeoutException)
@@ -38,6 +40,10 @@ public class RedisStreamBackgroundReceiver : BackgroundService
                     throw;
                 }
             }
+            catch (CronFormatException)
+            {
+            }
+
             await Task.Delay(3000, stoppingToken);
         }
     }
