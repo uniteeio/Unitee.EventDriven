@@ -28,6 +28,7 @@ For now, we mainly focus on Redis as an event store because:
   - Request/Reply pattern
   - Scheduling messages
   - Treat pending messages at start
+  - Recurring task (cron)
 
 # How to use
 
@@ -175,3 +176,11 @@ You can name the consumer with the third parameter of `AddRedisStreamBackgroundR
 
 When multiple consumer are subscribed to the same event, or when, there is multiple event pending, they are executed concurrently.
 This mean that you should not rely of the order they are inserted.
+
+### Reccuring tasks
+
+You can add a Redis Hash in a special named key: `Cron:Schedule:{Name of your cron}`. This hash should have as a fields (in the order bellow):
+  - `CronExpression` A cron expression that can be parsed with Cronos (https://github.com/HangfireIO/Cronos)
+  - `EventName` The name of the event we want to trigger when the cron expression is hit
+
+Every time the cron expression is hit, an event with the name `EventName` is published.
