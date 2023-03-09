@@ -177,6 +177,13 @@ You can name the consumer with the third parameter of `AddRedisStreamBackgroundR
 When multiple consumer are subscribed to the same event, or when, there is multiple event pending, they are executed concurrently.
 This mean that you should not rely of the order they are inserted.
 
+To avoid any concurrency issues, **consumers should be registered as Transient**. So, if you use Entity Framework, register it as Transient too:
+
+```cs
+builder.Services.AddDbContext<ApplicationDbContext>(options =>
+    SqlServerDbContextOptionsExtensions.UseSqlServer(options, dbConn), ServiceLifetime.Transient);
+```
+
 ### Reccuring tasks
 
 You can add a Redis Hash in a special named key: `Cron:Schedule:{Name of your cron}`. This hash should have as a fields (in the order bellow):
