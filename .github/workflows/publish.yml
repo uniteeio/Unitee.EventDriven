@@ -20,10 +20,10 @@ jobs:
           dotnet-version: '7.0.x'
 
       - id: get_version
-        uses: battila7/get-version-action@v2
+        uses: CarterChen247/version-retriever@v1
 
       - name: set RELEASE_VERSION
-        run: echo "RELEASE_VERSION=${{ steps.get_version.outputs.version-without-v }}" >> $GITHUB_ENV
+        run: echo "RELEASE_VERSION=${{ steps.version-retriever.outputs.version }}" >> $GITHUB_ENV
 
       - name: Build and generate NuGet package
         run: |
