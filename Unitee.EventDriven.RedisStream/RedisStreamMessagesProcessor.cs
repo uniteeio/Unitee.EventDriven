@@ -205,14 +205,14 @@ public class RedisStreamMessagesProcessor
 
     private async Task<bool> TryConsume<TMessage>(IRedisStreamConsumer<TMessage> consumer, TMessage message)
     {
-        _logger.LogDebug("Consuming message {} with subject: {}", message, MessageHelper.GetSubject<TMessage>());
+        _logger.LogInformation("Consuming message {Payload} with subject: {Type}", message, MessageHelper.GetSubject<TMessage>());
         await consumer.ConsumeAsync(message);
         return true;
     }
 
     private async Task<bool> TryConsumeWithContext<TMessage>(IRedisStreamConsumerWithContext<TMessage> consumer, TMessage message, string replyTo)
     {
-        _logger.LogDebug("Consuming message with context {} with subject: {}", message, MessageHelper.GetSubject<TMessage>());
+        _logger.LogInformation("Consuming message {Payload} with subject: {Type}", message, MessageHelper.GetSubject<TMessage>());
         var ctx = _msgContextFactory.Create(replyTo);
         await consumer.ConsumeAsync(message, ctx);
         return true;
