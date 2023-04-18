@@ -29,8 +29,4 @@
     <ProjectReference Include="..\Unitee.EventDriven.Abstraction\Unitee.EventDriven.Abstraction.csproj" />
   </ItemGroup>
 
-  <ItemGroup>
-    <PackageReference Include="Azure.Messaging.ServiceBus" Version="7.12.0" />
-  </ItemGroup>
-
 </Project>

@@ -7,7 +7,6 @@ using Unitee.EventDriven.RedisStream.Models;
 
 namespace Unitee.EventDriven.RedisStream;
 
-
 public interface IRedisStreamPublisher : IPublisher<RedisValue, RedisValue> { }
 
 public class RedisStreamPublisher : IRedisStreamPublisher
@@ -69,7 +68,6 @@ public class RedisStreamPublisher : IRedisStreamPublisher
         {
             return await PublishAsync(message);
         }
-
 
         var member = new RedisStreamScheduledMessageType<TMessage>(Guid.NewGuid(), message, subject);
 
