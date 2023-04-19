@@ -45,10 +45,7 @@ public class AzureServiceBusPublisher : IAzureServiceBusPublisher
         azMessage.Body = new(JsonSerializer.Serialize(message));
         azMessage.ContentType = "application/json";
 
-        if (azMessage.MessageId is null)
-        {
-            azMessage.MessageId = Guid.NewGuid().ToString();
-        }
+        azMessage.MessageId ??= Guid.NewGuid().ToString();
 
         if (azMessage.ScheduledEnqueueTime == default)
         {
@@ -97,17 +94,11 @@ public class AzureServiceBusPublisher : IAzureServiceBusPublisher
 
     public async Task<TResponse> RequestResponseAsync<TMessage, TResponse>(TMessage message, MessageOptions options, ReplyOptions? reply = null)
     {
-        if (reply is null)
-        {
-            reply = new();
-        }
+        reply ??= new();
 
         var sessionId = options.SessionId ?? Guid.NewGuid().ToString();
 
-        if (options.SessionId is null)
-        {
-            options.SessionId = sessionId;
-        }
+        options.SessionId ??= sessionId;
 
         await CreateReplyQueue(reply.QueueName);
 
