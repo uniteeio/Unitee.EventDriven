@@ -20,6 +20,9 @@ public record TestEvent7(string ATestString);
 public record TestEvent8(string ATestString);
 [Subject("TEST_EVENT_9")]
 public record TestEvent9(string ATestString);
+[Subject("TEST_EVENT_10")]
+public record TestEvent10(string ATestString);
+
 
 [Subject("DEAD_LETTER")]
 public record DeadLetter(string OriginalSubject, object OriginalPayload, string Reason);
