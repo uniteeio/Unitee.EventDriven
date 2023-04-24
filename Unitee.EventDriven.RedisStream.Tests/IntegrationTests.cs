@@ -331,5 +331,6 @@ public class BaseTests : IClassFixture<RedisFixtures>
         }
 
         db.StreamLength("TEST_EVENT_10").Should().Be(1);
+        db.KeyDelete("TEST_EVENT_10");
     }
 }
