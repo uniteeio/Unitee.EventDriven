@@ -81,9 +81,9 @@ public class RedisStreamPublisher : IRedisStreamPublisher
     }
 
 
-    public async Task<U> RequestResponseAsync<T, U>(T message, MessageOptions options, ReplyOptions? replyOptions = null)
+    public async Task<U> RequestResponseAsync<T, U>(T message, MessageOptions? options = null, ReplyOptions? replyOptions = null)
     {
-        var sessionId = options.SessionId ?? Guid.NewGuid().ToString();
+        var sessionId = options?.SessionId ?? Guid.NewGuid().ToString();
         var subject = MessageHelper.GetSubject<T>();
         var uniqueName = $"{subject}_{sessionId}";
         var db = _redis.GetDatabase();
