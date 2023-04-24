@@ -316,6 +316,8 @@ public class BaseTests : IClassFixture<RedisFixtures>
     public async Task RequestReply_ShouldOnlySendOneEventInTheStream()
     {
         var db = _redis.GetDatabase();
+        db.KeyDelete("TEST_EVENT_10");
+
         var services = GetServices(Guid.NewGuid().ToString());
 
         var provider = services.BuildServiceProvider();
@@ -325,10 +327,9 @@ public class BaseTests : IClassFixture<RedisFixtures>
         {
             await publisher.RequestResponseAsync<TestEvent10, bool>(new TestEvent10("World"), new());
         } catch (TimeoutException)
-        {}
+        {
+        }
 
         db.StreamLength("TEST_EVENT_10").Should().Be(1);
-
-        db.KeyDelete("TEST_EVENT_10");
     }
 }
