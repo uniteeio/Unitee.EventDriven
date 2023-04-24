@@ -60,8 +60,9 @@ public class RedisStreamPublisher : IRedisStreamPublisher
 
         if (options.SessionId is not null)
         {
-            await db.StreamAddAsync(subject, new NameValueEntry[] { new("Body", JsonSerializer.Serialize(message)), new("ReplyTo", $"{subject}_{options.SessionId}") }, maxLength: 100);
+            var res = await db.StreamAddAsync(subject, new NameValueEntry[] { new("Body", JsonSerializer.Serialize(message)), new("ReplyTo", $"{subject}_{options.SessionId}") }, maxLength: 100);
             await db.PublishAsync(subject, "");
+            return res;
         }
 
         if (options.ScheduledEnqueueTime is null)
