@@ -2,12 +2,9 @@
 
 [https://github.com/uniteeio/Unitee.EventDriven](https://github.com/uniteeio/Unitee.EventDriven)
 
-![logo](./Logo/Banner.png)
-
 # Summary
 
 Unitee.EventDriven is library to deal with Event Driven Programming (EDP) in a distributed environment.
-
 
 ![Build](https://img.shields.io/github/actions/workflow/status/uniteeio/Unitee.EventDriven/publish.yml?style=flat-square)
 ![Nuget](https://img.shields.io/nuget/v/Unitee.EventDriven.RedisStream?style=flat-square)
@@ -60,7 +57,7 @@ builder.Services.AddScoped<IRedisStreamPublisher, RedisStreamPublisher>();
 
 ### Publish
 
-Use the `IRedisStreamPublisher` to actually publish the event: 
+Use the `IRedisStreamPublisher` to actually publish the event:
 
 ```csharp
 [ApiController]
@@ -92,7 +89,7 @@ public class UserController : ControllerBase
         {
             var response = await _publisher.RequestResponseAsync(new PasswordForgotten(email));
             return Ok();
-        } 
+        }
         catch (TimeoutException)
         {
             return NotFound();
@@ -170,7 +167,7 @@ The default name is `DEAD_LETTER` but you can configured it by providing a secon
 ### Horizontal scaling
 
 Inside a consumer group, you can have multiple consumers. Each consumer group receives a single copy of the message.
-You can name the consumer with the third parameter of `AddRedisStreamBackgroundReceiver`. You should use an unique name PER INSTANCE. 
+You can name the consumer with the third parameter of `AddRedisStreamBackgroundReceiver`. You should use an unique name PER INSTANCE
 
 ### Thread safety and concurrency
 
