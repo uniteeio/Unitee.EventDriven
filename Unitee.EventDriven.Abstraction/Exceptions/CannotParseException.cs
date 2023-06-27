@@ -1,5 +1,3 @@
-using Azure.Messaging.ServiceBus;
-
 namespace Unitee.EventDriven.Exceptions;
 
 public class CannotParseException<TMessage> : Exception

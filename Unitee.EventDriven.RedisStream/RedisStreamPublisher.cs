@@ -45,7 +45,8 @@ public class RedisStreamPublisher : IRedisStreamPublisher
     {
         var db = _redis.GetDatabase();
         var res = await db.StreamAddAsync(subject, "Body", JsonSerializer.Serialize(message), maxLength: 100);
-        await db.PublishAsync(subject, "");
+        var redisChannel = new RedisChannel(subject, RedisChannel.PatternMode.Literal);
+        await db.PublishAsync(redisChannel, "");
         return res;
     }
 
@@ -61,7 +62,8 @@ public class RedisStreamPublisher : IRedisStreamPublisher
         if (options.SessionId is not null)
         {
             var res = await db.StreamAddAsync(subject, new NameValueEntry[] { new("Body", JsonSerializer.Serialize(message)), new("ReplyTo", $"{subject}_{options.SessionId}") }, maxLength: 100);
-            await db.PublishAsync(subject, "");
+            var redisChannel = new RedisChannel(subject, RedisChannel.PatternMode.Literal);
+            await db.PublishAsync(redisChannel, "");
             return res;
         }
 
@@ -90,7 +92,9 @@ public class RedisStreamPublisher : IRedisStreamPublisher
 
         var promise = new TaskCompletionSource<U>();
 
-        _redis.GetSubscriber().Subscribe(uniqueName, (channel, message) =>
+        var redisChannel = new RedisChannel(uniqueName, RedisChannel.PatternMode.Literal);
+
+        _redis.GetSubscriber().Subscribe(redisChannel, (channel, message) =>
         {
             var response = JsonSerializer.Deserialize<U>(message!);
             promise.TrySetResult(response!);
@@ -103,7 +107,7 @@ public class RedisStreamPublisher : IRedisStreamPublisher
 
         var completed = await Task.WhenAny(promise.Task, Task.Delay(replyOptions?.Timeout ?? TimeSpan.FromSeconds(5)));
 
-        _redis.GetSubscriber().Unsubscribe(uniqueName);
+        _redis.GetSubscriber().Unsubscribe(redisChannel);
 
         if (completed != promise.Task)
         {

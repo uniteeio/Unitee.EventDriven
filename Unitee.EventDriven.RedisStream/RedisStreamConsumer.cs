@@ -23,7 +23,8 @@ public class RedisStreamMessageContext : IRedisStreamMessageContext
 
     public async Task<bool> ReplyAsync<TMessage>(TMessage message)
     {
-        await _redis.GetSubscriber().PublishAsync(_replyTo, JsonSerializer.Serialize(message));
+        var redisChannel = new RedisChannel(_replyTo, RedisChannel.PatternMode.Literal);
+        await _redis.GetSubscriber().PublishAsync(redisChannel, JsonSerializer.Serialize(message));
         return true;
     }
 }

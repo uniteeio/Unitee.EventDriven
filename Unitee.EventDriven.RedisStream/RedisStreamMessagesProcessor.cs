@@ -56,7 +56,8 @@ public class RedisStreamMessagesProcessor
 
         ProcessStreamEntries<TMessage>(oldMessages);
 
-        _redis.GetSubscriber().Subscribe(subject, async (channel, value) =>
+        var redisChannel = new RedisChannel(subject, RedisChannel.PatternMode.Literal);
+        _redis.GetSubscriber().Subscribe(redisChannel, async (channel, value) =>
         {
             var db = _redis.GetDatabase();
             var streamEntries = await Read(subject);
@@ -271,10 +272,13 @@ public class RedisStreamMessagesProcessor
                 }
             }
 
+
+            var redisChannel = new RedisChannel(queueName.Value.ToString(), RedisChannel.PatternMode.Literal);
+
             // Execute
             db.StreamAdd($"Cron:ExecutionHistory:{cronName}", new NameValueEntry[] { new("ExecutedAt", previous.ToString("yyyyMMddHHmmssffff")) }, maxLength: 100);
             db.StreamAdd(queueName.Value.ToString(), "Body", "{}", maxLength: 100);
-            db.Publish(queueName.Value.ToString(), "1");
+            db.Publish(redisChannel, "1");
         }
 
         await db.LockReleaseAsync("CRON_LOCK", "1");
