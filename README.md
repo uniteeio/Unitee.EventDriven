@@ -29,7 +29,7 @@ For now, we mainly focus on Redis as an event store because:
 
 # How to use
 
-1) Use the package `StackExchang.Redis` to make the `IConnectionMultiplexer` in the DI container.
+1) Use the package `StackExchang.Redis` to make the `IConnectionMultiplexer` available in the DI container.
 
 ```csharp
 var multiplexer = ConnectionMultiplexer.Connect(builder.Configuration["Redis:ConnectionString"]);
@@ -52,7 +52,7 @@ If the subject is ommited, the name of the object is used instead (here, `UserRe
 ### Setup
 
 ```csahrp
-builder.Services.AddScoped<IRedisStreamPublisher, RedisStreamPublisher>();
+builder.Services.AddRedisStreamPublisher();
 ```
 
 ### Publish
@@ -188,3 +188,17 @@ You can add a Redis Hash in a special named key: `Cron:Schedule:{Name of your cr
   - `EventName` The name of the event we want to trigger when the cron expression is hit
 
 Every time the cron expression is hit, an event with the name `EventName` is published.
+
+### Configure json serialization / deserialization
+
+You can configure the redis stream publisher and receiver by calling:
+
+```cs
+builder.Services.AddRedisStreamOptions(options =>
+{
+    options.JsonSerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
+});
+```
+
+But be careful, see #28
+

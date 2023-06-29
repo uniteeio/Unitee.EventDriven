@@ -4,8 +4,6 @@ using Unitee.EventDriven.RedisStream;
 
 namespace Unitee.EventDriven.DependencyInjection;
 
-
-
 public static class ServicesConfiguration
 {
     public static void AddRedisStreamBackgroundReceiver(this IServiceCollection services, string serviceName, string deadLetterQueueName = "DEAD_LETTER", string instanceName = "Default")
@@ -17,7 +15,7 @@ public static class ServicesConfiguration
             new RedisStreamBackgroundReceiver(ctx));
     }
 
-    public static void AddRedisStreamBackgroundPublisher(this IServiceCollection services)
+    public static void AddRedisStreamPublisher(this IServiceCollection services)
     {
         services.AddScoped<IRedisStreamPublisher, RedisStreamPublisher>();
     }
