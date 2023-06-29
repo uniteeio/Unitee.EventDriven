@@ -5,6 +5,7 @@ using StackExchange.Redis;
 using Unitee.EventDriven.Abstraction;
 using Unitee.EventDriven.Attributes;
 using Unitee.EventDriven.Helpers;
+using Unitee.EventDriven.ReadisStream.Configuration;
 using Unitee.EventDriven.RedisStream.Events;
 using Unitee.EventDriven.RedisStream.Models;
 
@@ -23,6 +24,7 @@ public class RedisStreamMessagesProcessor
     private readonly string _serviceName;
     private readonly string _instanceName;
     private readonly string _deadLetterQueueName;
+    private readonly RedisStreamConfiguration _config;
 
     public RedisStreamMessagesProcessor(string serviceName, string instanceName, string deadLetterQueueName, IServiceProvider services)
     {
@@ -35,6 +37,8 @@ public class RedisStreamMessagesProcessor
         _publisher = services.GetRequiredService<IRedisStreamPublisher>();
         _instanceName = instanceName;
         _deadLetterQueueName = deadLetterQueueName;
+
+        _config = services.GetService<RedisStreamConfiguration>() ?? new RedisStreamConfiguration();
     }
 
     private async Task InnerRegisterConsumer<TMessage>()
@@ -191,7 +195,7 @@ public class RedisStreamMessagesProcessor
         }
     }
 
-    private static ParsedStreamEntry ParseStreamEntry<TMessage>(StreamEntry entry)
+    private ParsedStreamEntry ParseStreamEntry<TMessage>(StreamEntry entry)
     {
         var body = entry["Body"];
         var replyTo = entry["ReplyTo"];
@@ -201,7 +205,7 @@ public class RedisStreamMessagesProcessor
             return new ParsedStreamEntry(entry.Id, null, replyTo);
         }
 
-        return new ParsedStreamEntry(entry.Id, JsonSerializer.Deserialize<TMessage>(body!), replyTo);
+        return new ParsedStreamEntry(entry.Id, JsonSerializer.Deserialize<TMessage>(body!, _config.JsonSerializerOptions), replyTo);
     }
 
     private async Task<bool> TryConsume<TMessage>(IRedisStreamConsumer<TMessage> consumer, TMessage message)
@@ -315,7 +319,7 @@ public class RedisStreamMessagesProcessor
                     var distance = TimeSpan.FromMilliseconds(now - topMessage.Score);
                     _logger.LogInformation("Processing delayed message with delayed time {Distance}", distance);
 
-                    var message = JsonSerializer.Deserialize<RedisStreamScheduledMessageType<object>>(topMessage!.Element!);
+                    var message = JsonSerializer.Deserialize<RedisStreamScheduledMessageType<object>>(topMessage!.Element!, _config.JsonSerializerOptions);
 
                     if (message?.Subject is not null)
                     {

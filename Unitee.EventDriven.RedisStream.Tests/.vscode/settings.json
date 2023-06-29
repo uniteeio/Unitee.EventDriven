@@ -1,0 +1,3 @@
+{
+    "dotnet.defaultSolution": "Unitee.EventDriven.RedisStream.Tests.sln"
+}

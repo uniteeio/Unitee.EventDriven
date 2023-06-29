@@ -22,6 +22,12 @@ public record TestEvent8(string ATestString);
 public record TestEvent9(string ATestString);
 [Subject("TEST_EVENT_10")]
 public record TestEvent10(string ATestString);
+[Subject("TEST_EVENT_11")]
+public record TestEvent11(string ATestString);
+[Subject("TEST_EVENT_12")]
+public record TestEvent12(string ATestString);
+[Subject("TEST_EVENT_13")]
+public record TestEvent13(string ATestString);
 
 
 [Subject("DEAD_LETTER")]

@@ -1,8 +1,10 @@
 using System.Text.Json;
+using Microsoft.Extensions.DependencyInjection;
 using StackExchange.Redis;
 using Unitee.EventDriven.Abstraction;
 using Unitee.EventDriven.Helpers;
 using Unitee.EventDriven.Models;
+using Unitee.EventDriven.ReadisStream.Configuration;
 using Unitee.EventDriven.RedisStream.Models;
 
 namespace Unitee.EventDriven.RedisStream;
@@ -12,10 +14,12 @@ public interface IRedisStreamPublisher : IPublisher<RedisValue, RedisValue> { }
 public class RedisStreamPublisher : IRedisStreamPublisher
 {
     private readonly IConnectionMultiplexer _redis;
+    private readonly RedisStreamConfiguration _config;
 
-    public RedisStreamPublisher(IConnectionMultiplexer redis)
+    public RedisStreamPublisher(IConnectionMultiplexer redis, IServiceProvider services)
     {
         _redis = redis;
+        _config = services.GetService<RedisStreamConfiguration>() ?? new RedisStreamConfiguration();
     }
 
     public async Task CancelAsync(RedisValue member, string? topic = null)
@@ -44,7 +48,7 @@ public class RedisStreamPublisher : IRedisStreamPublisher
     public async Task<RedisValue> PublishAsync<TMessage>(TMessage message, string subject)
     {
         var db = _redis.GetDatabase();
-        var res = await db.StreamAddAsync(subject, "Body", JsonSerializer.Serialize(message), maxLength: 100);
+        var res = await db.StreamAddAsync(subject, "Body", JsonSerializer.Serialize(message, _config.JsonSerializerOptions), maxLength: 100);
         var redisChannel = new RedisChannel(subject, RedisChannel.PatternMode.Literal);
         await db.PublishAsync(redisChannel, "");
         return res;
@@ -61,9 +65,12 @@ public class RedisStreamPublisher : IRedisStreamPublisher
 
         if (options.SessionId is not null)
         {
-            var res = await db.StreamAddAsync(subject, new NameValueEntry[] { new("Body", JsonSerializer.Serialize(message)), new("ReplyTo", $"{subject}_{options.SessionId}") }, maxLength: 100);
+            var res = await db.StreamAddAsync(subject, new NameValueEntry[] {
+                new("Body", JsonSerializer.Serialize(message, _config.JsonSerializerOptions)),
+                new("ReplyTo", $"{subject}_{options.SessionId}") }, maxLength: 100);
+
             var redisChannel = new RedisChannel(subject, RedisChannel.PatternMode.Literal);
-            await db.PublishAsync(redisChannel, "");
+            await db.PublishAsync(redisChannel, "1");
             return res;
         }
 
@@ -74,7 +81,7 @@ public class RedisStreamPublisher : IRedisStreamPublisher
 
         var member = new RedisStreamScheduledMessageType<TMessage>(Guid.NewGuid(), message, subject);
 
-        var json = JsonSerializer.Serialize(member);
+        var json = JsonSerializer.Serialize(member, _config.JsonSerializerOptions);
         var scheduledTime = options.ScheduledEnqueueTime.Value.ToUnixTimeMilliseconds();
 
         await db.SortedSetAddAsync("SCHEDULED_MESSAGES", json, scheduledTime);
@@ -96,7 +103,7 @@ public class RedisStreamPublisher : IRedisStreamPublisher
 
         _redis.GetSubscriber().Subscribe(redisChannel, (channel, message) =>
         {
-            var response = JsonSerializer.Deserialize<U>(message!);
+            var response = JsonSerializer.Deserialize<U>(message!, _config.JsonSerializerOptions);
             promise.TrySetResult(response!);
         });
 
