@@ -45,9 +45,9 @@ public class RedisStreamPublisher : IRedisStreamPublisher
             payload.Add(new("ReplyTo", $"{subject}_{options.SessionId}"));
         }
 
-        if (options.TimeToLive is not null)
+        if (options.ExpireAt is not null)
         {
-            payload.Add(new("TTL", options.TimeToLive.Value.ToUnixTimeMilliseconds().ToString()));
+            payload.Add(new("ExpireAt", options.ExpireAt.Value.ToUnixTimeMilliseconds().ToString()));
         }
 
         if (options.Locale is not null)

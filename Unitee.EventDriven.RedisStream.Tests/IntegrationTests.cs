@@ -399,7 +399,7 @@ public class BaseTests : IClassFixture<RedisFixtures>
 
 
     [Fact]
-    public async Task TTL_MessageWithATtlShouldBeProcessed()
+    public async Task TTL_MessageWithExpiredAtShouldBeProcessed()
     {
         var db = _redis.GetDatabase();
 
@@ -419,7 +419,7 @@ public class BaseTests : IClassFixture<RedisFixtures>
         var publisher = provider.GetRequiredService<IRedisStreamPublisher>();
         var backgroundService = provider.GetService<RedisStreamBackgroundReceiver>();
 
-        await publisher.PublishAsync(new TestEvent14("World"), new MessageOptions() { TimeToLive = DateTimeOffset.UtcNow.AddSeconds(5) });
+        await publisher.PublishAsync(new TestEvent14("World"), new MessageOptions() { ExpireAt = DateTimeOffset.UtcNow.AddSeconds(5) });
         await backgroundService.StartAsync(CancellationToken.None);
         await Task.Delay(1000);
         await backgroundService.StopAsync(CancellationToken.None);
@@ -429,7 +429,7 @@ public class BaseTests : IClassFixture<RedisFixtures>
     }
 
     [Fact]
-    public async Task TTL_MessageWithAExpiredTTLShouldNotBeProcessed()
+    public async Task TTL_MessageWithAExpiredAtExpiredShouldNotBeProcessed()
     {
         var db = _redis.GetDatabase();
 
@@ -448,7 +448,7 @@ public class BaseTests : IClassFixture<RedisFixtures>
         var publisher = provider.GetRequiredService<IRedisStreamPublisher>();
         var backgroundService = provider.GetService<RedisStreamBackgroundReceiver>();
 
-        await publisher.PublishAsync(new TestEvent15("World"), new MessageOptions() { TimeToLive = DateTimeOffset.UtcNow.AddSeconds(1) });
+        await publisher.PublishAsync(new TestEvent15("World"), new MessageOptions() { ExpireAt = DateTimeOffset.UtcNow.AddSeconds(1) });
         await Task.Delay(2000);
         await backgroundService.StartAsync(CancellationToken.None);
         await Task.Delay(1000);

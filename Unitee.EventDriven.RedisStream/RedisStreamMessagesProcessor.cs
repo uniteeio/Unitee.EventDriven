@@ -12,7 +12,7 @@ using Unitee.EventDriven.RedisStream.Models;
 
 namespace Unitee.EventDriven.RedisStream;
 
-public record ParsedStreamEntry(string? Id, object? Body, string? ReplyTo, Maybe<DateTimeOffset> TTL, Maybe<string> Locale);
+public record ParsedStreamEntry(string? Id, object? Body, string? ReplyTo, Maybe<DateTimeOffset> ExpireAt, Maybe<string> Locale);
 
 public class RedisStreamMessagesProcessor
 {
@@ -110,8 +110,8 @@ public class RedisStreamMessagesProcessor
             {
                 var processed = ParseStreamEntry<TMessage>(entry);
 
-                // TTL
-                var hasExpired = processed.TTL.Map(ttl => ttl < DateTimeOffset.UtcNow).GetValueOrDefault(false);
+                // Expiration
+                var hasExpired = processed.ExpireAt.Map(dt => dt < DateTimeOffset.UtcNow).GetValueOrDefault(false);
                 if (hasExpired)
                 {
                     _logger.LogWarning("Message {Id} has expired", processed.Id);
@@ -219,15 +219,15 @@ public class RedisStreamMessagesProcessor
         var body = entry["Body"];
         var replyTo = entry["ReplyTo"];
 
-        var ttl = AsMaybe<long>(entry["TTL"]).Map(x => DateTimeOffset.FromUnixTimeMilliseconds(x));
+        var expireAt = AsMaybe<long>(entry["ExpireAt"]).Map(x => DateTimeOffset.FromUnixTimeMilliseconds(x));
         var locale = AsMaybe<string>(entry["Locale"]);
 
         if (body.IsNull)
         {
-            return new ParsedStreamEntry(entry.Id, null, replyTo, ttl, locale);
+            return new ParsedStreamEntry(entry.Id, null, replyTo, expireAt, locale);
         }
 
-        return new ParsedStreamEntry(entry.Id, JsonSerializer.Deserialize<TMessage>(body!, _config.JsonSerializerOptions), replyTo, ttl, locale);
+        return new ParsedStreamEntry(entry.Id, JsonSerializer.Deserialize<TMessage>(body!, _config.JsonSerializerOptions), replyTo, expireAt, locale);
     }
 
     private async Task<bool> TryConsume<TMessage>(IRedisStreamConsumer<TMessage> consumer, TMessage message)
