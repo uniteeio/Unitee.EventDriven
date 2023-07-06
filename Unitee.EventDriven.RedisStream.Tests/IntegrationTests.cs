@@ -398,4 +398,66 @@ public class BaseTests : IClassFixture<RedisFixtures>
     }
 
 
+    [Fact]
+    public async Task TTL_MessageWithATtlShouldBeProcessed()
+    {
+        var db = _redis.GetDatabase();
+
+         try
+        {
+            db.StreamCreateConsumerGroup("TEST_EVENT_14", "DefaultConsumer", StreamPosition.NewMessages);
+        }
+        catch (RedisException)
+        {
+        }
+
+        var services = GetServices("DefaultConsumer");
+        var consumerInstance = new Mock<IRedisStreamConsumer<TestEvent14>>();
+        services.AddTransient<IConsumer>(x => consumerInstance.Object);
+
+        var provider = services.BuildServiceProvider();
+        var publisher = provider.GetRequiredService<IRedisStreamPublisher>();
+        var backgroundService = provider.GetService<RedisStreamBackgroundReceiver>();
+
+        await publisher.PublishAsync(new TestEvent14("World"), new MessageOptions() { TimeToLive = DateTimeOffset.UtcNow.AddSeconds(5) });
+        await backgroundService.StartAsync(CancellationToken.None);
+        await Task.Delay(1000);
+        await backgroundService.StopAsync(CancellationToken.None);
+        db.KeyDelete("TEST_EVENT_14");
+
+        consumerInstance.Verify(x => x.ConsumeAsync(new TestEvent14("World")), Times.Once);
+    }
+
+    [Fact]
+    public async Task TTL_MessageWithAExpiredTTLShouldNotBeProcessed()
+    {
+        var db = _redis.GetDatabase();
+
+         try
+        {
+            db.StreamCreateConsumerGroup("TEST_EVENT_15", "DefaultConsumer", StreamPosition.NewMessages);
+        }
+        catch (RedisException)
+        {
+        }
+        var services = GetServices("DefaultConsumer");
+        var consumerInstance = new Mock<IRedisStreamConsumer<TestEvent15>>();
+        services.AddTransient<IConsumer>(x => consumerInstance.Object);
+
+        var provider = services.BuildServiceProvider();
+        var publisher = provider.GetRequiredService<IRedisStreamPublisher>();
+        var backgroundService = provider.GetService<RedisStreamBackgroundReceiver>();
+
+        await publisher.PublishAsync(new TestEvent15("World"), new MessageOptions() { TimeToLive = DateTimeOffset.UtcNow.AddSeconds(1) });
+        await Task.Delay(2000);
+        await backgroundService.StartAsync(CancellationToken.None);
+        await Task.Delay(1000);
+        await backgroundService.StopAsync(CancellationToken.None);
+        db.KeyDelete("TEST_EVENT_15");
+
+        consumerInstance.Verify(x => x.ConsumeAsync(new TestEvent15("World")), Times.Never());
+    }
+
+
+
 }

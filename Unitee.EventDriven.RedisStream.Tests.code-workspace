@@ -7,5 +7,7 @@
 			"path": "Unitee.EventDriven.RedisStream"
 		}
 	],
-	"settings": {}
+	"settings": {
+		"dotnet.defaultSolution": "/Users/tcreach/Documents/Projects/Unitee.EventDriven/Unitee.EventDriven.RedisStream.Tests/Unitee.EventDriven.RedisStream.Tests.sln"
+	}
 }
