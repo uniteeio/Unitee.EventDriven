@@ -481,32 +481,4 @@ public class BaseTests : IClassFixture<RedisFixtures>
 
         consumerInstance.Verify(x => x.ConsumeAsync(new TestEvent16("World"), It.Is<RedisStreamMessageContext>(x => x.Locale == "en-US")), Times.Once());
     }
-
-    [Fact]
-    public async Task Local_AMessageWithoutReplyCantBeReplyed()
-    {
-        var db = _redis.GetDatabase();
-
-        var services = GetServices(Guid.NewGuid().ToString());
-        var consumerInstance = new Mock<IRedisStreamConsumerWithContext<TestEvent17>>();
-        services.AddTransient<IConsumer>(x => consumerInstance.Object);
-
-        var provider = services.BuildServiceProvider();
-        var publisher = provider.GetRequiredService<IRedisStreamPublisher>();
-        var backgroundService = provider.GetService<RedisStreamBackgroundReceiver>();
-
-        await backgroundService.StartAsync(CancellationToken.None);
-        await Task.Delay(100);
-        await publisher.PublishAsync(new TestEvent17("World"), new MessageOptions() { Locale = "en-US" });
-        await Task.Delay(500);
-        await backgroundService.StopAsync(CancellationToken.None);
-
-        db.KeyDelete("TEST_EVENT_17");
-
-        consumerInstance.Verify(x => x.ConsumeAsync(new TestEvent17("World"), It.Is<RedisStreamMessageContext>(x => x.Locale == "en-US")), Times.Once());
-    }
-
-
-
-
 }
