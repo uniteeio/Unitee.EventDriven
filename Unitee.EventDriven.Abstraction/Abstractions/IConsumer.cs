@@ -1,8 +1,8 @@
 namespace Unitee.EventDriven.Abstraction;
 
 /// <summary>
-/// Juste pour pouvoir récupérer la liste de tous les consumers depuis l'injection de dépendances.
-/// Ne doit jamais être implémenté directement sans passer par IConsummer<T>.
+/// Used to mark a class as a consumer.
+/// Should never be implemented directly without passing through IConsummer<T> / IConsumerWithContext<T> or IConsumerWithMetadata<T, TMetadata>
 /// </summary>
 public interface IConsumer { }
 
@@ -15,3 +15,4 @@ public interface IConsumer<T> : IConsumer
 {
     public Task ConsumeAsync(T message);
 }
+

@@ -122,6 +122,7 @@ public class RedisStreamMessagesProcessor
                 {
                     var consumers = _services.GetServices<IConsumer>();
 
+                    // Classics consumers
                     var matchedConsumers =
                         consumers.Where(c => MessageHelper.GetSubject(c.GetType()?.GetInterface("IRedisStreamConsumer`1")?.GenericTypeArguments?[0]) == MessageHelper.GetSubject<TMessage>())
                         .ToList();
@@ -153,6 +154,7 @@ public class RedisStreamMessagesProcessor
                         taskList.Add(task);
                     }
 
+                    // Consumers with context
                     var matchedConsumersWithContext = consumers
                         .Where(c => MessageHelper.GetSubject(
                             c.GetType()?.GetInterface("IRedisStreamConsumerWithContext`1")?.GenericTypeArguments?[0]) == MessageHelper.GetSubject<TMessage>())
@@ -164,7 +166,7 @@ public class RedisStreamMessagesProcessor
                         {
                             try
                             {
-                                await TryConsumeWithContext<TMessage>((dynamic)consumer, (TMessage)processed.Body, processed.ReplyTo);
+                                await TryConsumeWithContext<TMessage>((dynamic)consumer, (TMessage)processed.Body, processed.ReplyTo, processed.Locale);
                                 await db.StreamAcknowledgeAsync(subject, _serviceName, processed.Id);
                             }
                             catch (Exception e)
@@ -237,10 +239,10 @@ public class RedisStreamMessagesProcessor
         return true;
     }
 
-    private async Task<bool> TryConsumeWithContext<TMessage>(IRedisStreamConsumerWithContext<TMessage> consumer, TMessage message, string replyTo)
+    private async Task<bool> TryConsumeWithContext<TMessage>(IRedisStreamConsumerWithContext<TMessage> consumer, TMessage message, string replyTo, Maybe<string> locale = default)
     {
         _logger.LogInformation("Consuming message {Payload} with subject: {Type}", message, MessageHelper.GetSubject<TMessage>());
-        var ctx = _msgContextFactory.Create(replyTo);
+        var ctx = _msgContextFactory.Create(replyTo, locale);
         await consumer.ConsumeAsync(message, ctx);
         return true;
     }

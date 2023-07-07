@@ -1,12 +1,17 @@
 namespace Unitee.EventDriven.Abstraction;
 
+
+///
+/// <summary>
+/// Used for Azure Service Bus messages only
+/// </summary>
 public interface IMessageHandler<T>
 {
     /// <summary>
-    /// Appelle le bon consumer enregistré pour le message de type T
+    /// Route to the right consumer.
     /// </summary>
     /// <returns>
-    /// True si un consumer a été trouvé et appelé, false sinon.
+    /// True if the message was handled, false otherwise.
     /// </returns>
     public Task<bool> HandleAsync(T originalMessage);
 }
