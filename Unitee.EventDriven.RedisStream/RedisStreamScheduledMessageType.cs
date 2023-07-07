@@ -1,3 +1,3 @@
 namespace Unitee.EventDriven.RedisStream.Models;
 
-public record RedisStreamScheduledMessageType<T>(Guid Id, T Body, string Subject);
+public record RedisStreamScheduledMessageType<T>(Guid Id, string Body, string Subject);

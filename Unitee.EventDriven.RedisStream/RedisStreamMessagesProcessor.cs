@@ -1,4 +1,5 @@
 using System.Text.Json;
+using CSharpFunctionalExtensions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using StackExchange.Redis;
@@ -11,7 +12,7 @@ using Unitee.EventDriven.RedisStream.Models;
 
 namespace Unitee.EventDriven.RedisStream;
 
-public record ParsedStreamEntry(string? Id, object? Body, string? ReplyTo);
+public record ParsedStreamEntry(string? Id, object? Body, string? ReplyTo, Maybe<DateTimeOffset> ExpireAt, Maybe<string> Locale);
 
 public class RedisStreamMessagesProcessor
 {
@@ -109,10 +110,19 @@ public class RedisStreamMessagesProcessor
             {
                 var processed = ParseStreamEntry<TMessage>(entry);
 
+                // Expiration
+                var hasExpired = processed.ExpireAt.Map(dt => dt < DateTimeOffset.UtcNow).GetValueOrDefault(false);
+                if (hasExpired)
+                {
+                    _logger.LogWarning("Message {Id} has expired", processed.Id);
+                    return;
+                }
+
                 if (processed.Id is not null && processed.Body is not null)
                 {
                     var consumers = _services.GetServices<IConsumer>();
 
+                    // Classics consumers
                     var matchedConsumers =
                         consumers.Where(c => MessageHelper.GetSubject(c.GetType()?.GetInterface("IRedisStreamConsumer`1")?.GenericTypeArguments?[0]) == MessageHelper.GetSubject<TMessage>())
                         .ToList();
@@ -144,6 +154,7 @@ public class RedisStreamMessagesProcessor
                         taskList.Add(task);
                     }
 
+                    // Consumers with context
                     var matchedConsumersWithContext = consumers
                         .Where(c => MessageHelper.GetSubject(
                             c.GetType()?.GetInterface("IRedisStreamConsumerWithContext`1")?.GenericTypeArguments?[0]) == MessageHelper.GetSubject<TMessage>())
@@ -155,7 +166,7 @@ public class RedisStreamMessagesProcessor
                         {
                             try
                             {
-                                await TryConsumeWithContext<TMessage>((dynamic)consumer, (TMessage)processed.Body, processed.ReplyTo);
+                                await TryConsumeWithContext<TMessage>((dynamic)consumer, (TMessage)processed.Body, processed.ReplyTo, processed.Locale);
                                 await db.StreamAcknowledgeAsync(subject, _serviceName, processed.Id);
                             }
                             catch (Exception e)
@@ -195,17 +206,30 @@ public class RedisStreamMessagesProcessor
         }
     }
 
+    private Maybe<T> AsMaybe<T>(RedisValue v)
+    {
+        if (v.HasValue)
+        {
+            return Maybe<T>.From((T)Convert.ChangeType(v, typeof(T)));
+        }
+
+        return Maybe<T>.None;
+    }
+
     private ParsedStreamEntry ParseStreamEntry<TMessage>(StreamEntry entry)
     {
         var body = entry["Body"];
         var replyTo = entry["ReplyTo"];
 
+        var expireAt = AsMaybe<long>(entry["ExpireAt"]).Map(x => DateTimeOffset.FromUnixTimeMilliseconds(x));
+        var locale = AsMaybe<string>(entry["Locale"]);
+
         if (body.IsNull)
         {
-            return new ParsedStreamEntry(entry.Id, null, replyTo);
+            return new ParsedStreamEntry(entry.Id, null, replyTo, expireAt, locale);
         }
 
-        return new ParsedStreamEntry(entry.Id, JsonSerializer.Deserialize<TMessage>(body!, _config.JsonSerializerOptions), replyTo);
+        return new ParsedStreamEntry(entry.Id, JsonSerializer.Deserialize<TMessage>(body!, _config.JsonSerializerOptions), replyTo, expireAt, locale);
     }
 
     private async Task<bool> TryConsume<TMessage>(IRedisStreamConsumer<TMessage> consumer, TMessage message)
@@ -215,10 +239,10 @@ public class RedisStreamMessagesProcessor
         return true;
     }
 
-    private async Task<bool> TryConsumeWithContext<TMessage>(IRedisStreamConsumerWithContext<TMessage> consumer, TMessage message, string replyTo)
+    private async Task<bool> TryConsumeWithContext<TMessage>(IRedisStreamConsumerWithContext<TMessage> consumer, TMessage message, string replyTo, Maybe<string> locale = default)
     {
         _logger.LogInformation("Consuming message {Payload} with subject: {Type}", message, MessageHelper.GetSubject<TMessage>());
-        var ctx = _msgContextFactory.Create(replyTo);
+        var ctx = _msgContextFactory.Create(replyTo, locale);
         await consumer.ConsumeAsync(message, ctx);
         return true;
     }
@@ -246,7 +270,6 @@ public class RedisStreamMessagesProcessor
         }
 
         var cron = GetKeys("Cron:Schedule:*");
-
 
         foreach (var key in cron)
         {
@@ -319,7 +342,7 @@ public class RedisStreamMessagesProcessor
                     var distance = TimeSpan.FromMilliseconds(now - topMessage.Score);
                     _logger.LogInformation("Processing delayed message with delayed time {Distance}", distance);
 
-                    var message = JsonSerializer.Deserialize<RedisStreamScheduledMessageType<object>>(topMessage!.Element!, _config.JsonSerializerOptions);
+                    var message = JsonSerializer.Deserialize<RedisStreamScheduledMessageType<object>>(topMessage!.Element!);
 
                     if (message?.Subject is not null)
                     {
@@ -339,7 +362,8 @@ public class RedisStreamMessagesProcessor
                             throw new CannotHandleScheduledMessageException("A scheduled message was found but a class with the subject was not found in the assembly. So the message has been ignored.");
                         }
 
-                        JsonElement? concreteBodyType = message.Body as JsonElement?;
+                        JsonElement? concreteBodyType = JsonSerializer.Deserialize<JsonElement?>(message.Body, _config.JsonSerializerOptions);
+
                         if (concreteBodyType is null)
                         {
                             throw new CannotHandleScheduledMessageException("Body cannot be null. As a workaround, you can use an empty object instead.");

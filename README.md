@@ -26,6 +26,7 @@ For now, we mainly focus on Redis as an event store because:
   - Scheduling messages
   - Treat pending messages at start
   - Recurring task (cron)
+  - Localized messages
 
 # How to use
 
@@ -144,13 +145,15 @@ services.AddTransient<IConsumer, UserRegisteredConsumer>();
 
 All consumers should be added using `AddTransient`. So, they all have their own scope since they are executed concurrently.
 
-If you want to your consumer to be able to reply, then, implement `IRedisStreamConsumerWithContext<TRequest, TResponse>` instead.
+If you want to your consumer to be able to reply or access metadata of the message, then, implement `IRedisStreamConsumerWithContext<TRequest, TResponse>` instead.
 
 ```csharp
-public class UserRegisteredConsumer : IRedisStreamConsumeWithContext<UserRegistered, MyResponse>
+public class UserRegisteredConsumer : IRedisStreamConsumeWithContext<UserRegistered, MyResponse> // Use object or anything if you didn't plan to respond to the message.
 {
     public async Task ConsumeAsync(UserRegistered message, IRedisStreamMessageContext context)
     {
+       _logger.LogInformation(context.Locale);
+
         await _email.Send(message.Email);
 
         await context.ReplyAsync(new MyResponse());
