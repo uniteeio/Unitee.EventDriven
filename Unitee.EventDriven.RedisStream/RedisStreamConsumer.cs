@@ -40,6 +40,8 @@ public class RedisStreamMessageContext : IRedisStreamMessageContext
         }
 
         var redisChannel = new RedisChannel(_replyTo.GetValueOrThrow(), RedisChannel.PatternMode.Literal);
+
+        // FIXME: Json parse option here
         await _redis.GetSubscriber().PublishAsync(redisChannel, JsonSerializer.Serialize(message));
         return true;
     }
