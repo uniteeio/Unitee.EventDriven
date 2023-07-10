@@ -29,4 +29,8 @@
     <ProjectReference Include="..\Unitee.EventDriven.Abstraction\Unitee.EventDriven.Abstraction.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <PackageReference Include="CSharpFunctionalExtensions" Version="2.40.0" />
+  </ItemGroup>
+
 </Project>

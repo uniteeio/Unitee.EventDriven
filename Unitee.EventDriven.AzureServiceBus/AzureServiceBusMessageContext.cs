@@ -1,4 +1,5 @@
 using Azure.Messaging.ServiceBus;
+using CSharpFunctionalExtensions;
 using Unitee.EventDriven.Abstraction;
 
 namespace Unitee.EventDriven.AzureServiceBus;
@@ -9,6 +10,8 @@ public class AzureServiceBusMessageContext : IAzureServiceBusMessageContext
 {
     private readonly IAzureServiceBusPublisher _publisher;
     private readonly ServiceBusReceivedMessage _message;
+
+    public Maybe<string> Locale { get; } = default;
 
     public AzureServiceBusMessageContext(IAzureServiceBusPublisher publisher, ServiceBusReceivedMessage originalMessage)
     {
