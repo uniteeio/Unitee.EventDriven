@@ -202,3 +202,18 @@ builder.Services.AddRedisStreamOptions(options =>
     options.JsonSerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
 });
 ```
+
+### Keyspace events
+
+Keyspace events, when enabled, are pushed to a special Redis stream: `KEYSPACE_EVENTS`. Allowing consumers to consume keyspace notification.
+
+https://redis.io/docs/manual/keyspace-notifications/
+
+Example use case: debounce a series of events by delaying the expiration of a key. When the key expires, then, execute our action.
+
+WARNINGS: this feature is not perfect because:
+  - it uses pub sub to subscribe to keyspace events, so if the service is down, some events can be missed
+  - events can be received multiple time (and pushed multiple time) in case of multiple instance
+
+The feature will move to a Redis Function (redis 7, when it will be available)
+
