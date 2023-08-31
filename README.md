@@ -202,6 +202,3 @@ builder.Services.AddRedisStreamOptions(options =>
     options.JsonSerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
 });
 ```
-
-But be careful, see #28
-
