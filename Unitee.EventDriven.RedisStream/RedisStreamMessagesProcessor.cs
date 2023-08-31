@@ -408,4 +408,32 @@ public class RedisStreamMessagesProcessor
         await db.LockReleaseAsync("SCHEDULED_MESSAGES_LOCK", "1");
         return 0;
     }
+
+    // https://stackoverflow.com/questions/23180765/redis-keyspace-notifications-with-stackexchange-redis
+    public Result RegisterKeySpaceEventHandler()
+    {
+        var sub = _redis.GetSubscriber();
+
+        var redisChannel = new RedisChannel("__keyspace@0__:*", RedisChannel.PatternMode.Auto);
+
+        sub.Subscribe(redisChannel, async (channel, value) =>
+        {
+            var db = _redis.GetDatabase();
+
+            var chan = channel.IsNullOrEmpty ? Maybe<string>.None : Maybe<string>.From((string)channel!);
+            var command = (string)value!;
+
+            var key = chan.Map(x => string.Join("", x.Split(":").Skip(1)));
+
+            var ignore = new[] { "CRON_LOCK", "SCHEDULED_MESSAGES_LOCK" };
+            var keyIgnored = ignore.Any(x => key.Map(y => y.StartsWith(x)).GetValueOrDefault(false));
+
+            if (key.HasValue && !keyIgnored)
+            {
+                await _publisher.PublishAsync(new KeySpaceEvent(command, key.GetValueOrThrow()));
+            }
+        });
+
+        return Result.Success();
+    }
 }

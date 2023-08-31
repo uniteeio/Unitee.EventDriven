@@ -20,7 +20,9 @@ public class RedisStreamBackgroundReceiver : BackgroundService
         using var scope = _services.CreateScope();
 
         var processor = scope.ServiceProvider.GetRequiredService<RedisStreamMessagesProcessor>();
+
         processor.RegisterConsumers();
+        processor.RegisterKeySpaceEventHandler();
 
         var errorCount = 0;
 
